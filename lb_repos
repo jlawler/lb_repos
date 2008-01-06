@@ -1,0 +1,348 @@
+#!/usr/bin/perl 
+use strict;
+use warnings;
+use Cwd;
+use Getopt::Long;
+use Data::Dumper;
+use YAML;
+
+sub gen_sigs();
+my $default_config_file="/etc/lb_repos.yaml";
+my $config_file;
+GetOptions('config=s'=>\$config_file);
+$config_file = $default_config_file unless $config_file;
+die "cannot open config file $config_file\n" unless -e $config_file;
+my ($command, $add_to, @files)=grep(!/^--/,@ARGV);
+
+my $config=read_config($config_file);
+my %kmap= (optional         => 'suggests',
+     recommended      => 'recommends',
+     class            => 'priority',
+     package_revision => 'revision',
+    );
+my @pkg_dep_fields = qw(Replaces Provides Depends Pre-Depends Recommends Suggests Conflicts Enhances Breaks);
+my @src_dep_fields = qw(Build-Depends Build-Depends-Indep Build-Conflicts Build-Conflicts-Indep);
+
+my @fieldpri = (qw(Package Source Version Architecture Essential Origin Bugs
+                   Maintainer Installed-Size), @pkg_dep_fields, qw(Filename
+                   Size MD5sum Section Priority Description));
+
+# This maps the fields into the proper case
+my %field_case;
+@field_case{map{lc($_)} @fieldpri} = @fieldpri;
+
+my @new_dist_paths=qw(
+dists
+dists/DIST
+pool-DIST
+);
+my @new_section_paths=qw(
+dists/DIST/SECTION
+dists/DIST/SECTION/binary-ARCH
+pool-DIST/SECTION
+);
+my $usage="
+lb_repos:  Builds and maintains package repositories.
+\tPlease note that you MUST rebuild after you add files!
+
+\tTo add files:  lb_repos add DISTRO FILES
+
+\tTo rebuild the repositories:  lb_repos rebuild
+
+\tTo  list files in the repositories:  lb_repos list [distro][/section] 
+
+";
+$command="" unless $command;
+if($command=~/^(re)?build/){
+  create_dirs();
+  foreach my $repo_name(keys %{$config->{repositories}}){
+  print "Rebuilding $repo_name\n";
+  gen_packages($config->{repositories}->{$repo_name});
+  rebuild_repo();
+  gen_releases($config->{repositories}->{$repo_name},$repo_name);
+  }
+  gen_sigs();
+}elsif($command=~/^list/){
+  my $section="";
+  if($add_to){
+    if($add_to=~m!^(\w*)/(\w*)!){
+      $add_to=$1;
+      $section=$2;
+    }
+    foreach my $repo_name(keys %{$config->{repositories}}){
+      my $repo=$config->{repositories}->{$repo_name};
+      list_files($repo,$section) if(($repo->{distro}->{name} eq $add_to) ||($repo->{distro}->{simlink} && $repo->{distro}->{simlink} eq $add_to)) ;
+    }
+  }else{
+    foreach my $repo_name(keys %{$config->{repositories}}){
+      my $repo=$config->{repositories}->{$repo_name};
+      foreach my $section(@{$repo->{distro}->{sections}}){
+      list_files($repo,$section);
+      }
+    }
+  }
+
+}elsif($command=~/^add/){
+  unless(@ARGV>2){
+    print STDERR "invalid number of arguments to add!\n";
+    exit;
+  } 
+  my $section="main";
+  if($add_to=~m!^(\w*)/(\w*)!){
+    $add_to=$1;
+    $section=$2;
+  }
+#  die "Unable to find file $file" unless -e $file;
+  foreach my $repo_name(keys %{$config->{repositories}}){
+    my $repo=$config->{repositories}->{$repo_name};
+
+    add_files($repo,$section,@files) if(($repo->{distro}->{name} eq $add_to) ||($repo->{distro}->{simlink} && $repo->{distro}->{simlink} eq $add_to)) ;
+  }
+  print STDERR "unable to find distro $add_to\n"; 
+}else{
+  print STDERR $usage;
+  exit;
+}
+
+sub list_files {
+  my ($repo, $section)=@_;
+  my ($distro, $path,$keyring)=($repo->{distro}->{name},$repo->{path},$repo->{keyring});
+  print "In $distro / $section:\n";
+  opendir DH, "$path/pool-$distro/$section/" || next;
+  while(my $ent=readdir(DH)){
+    print "\t$ent\n" if $ent=~m/\.deb$/;
+  }
+  closedir DH;
+  print "\n";
+}
+
+sub create_dirs {
+  foreach my $repo_name(keys %{$config->{repositories}}){
+  my $repo=$config->{repositories}->{$repo_name};
+  my $DN=$repo->{distro}->{name};
+  foreach my $to_create_o(@new_dist_paths){
+  my $to_create=$to_create_o;
+  $to_create=~s/DIST/$DN/g;
+  unless(-e $repo->{path}."/".$to_create){
+  mkdir($repo->{path}."/".$to_create);
+  system "chgrp ".$config->{group_owner}.' '.$repo->{path}."/".$to_create." 2>/dev/null" if $config->{group_owner};
+  }
+  }
+  foreach my $utc(@new_section_paths){
+  foreach my $section(@{$repo->{distro}->{sections}}){
+  foreach my $arch(@{$repo->{distro}->{arch}}){
+  my $to_create=$utc;
+  $to_create=~s/DIST/$DN/g;
+  $to_create=~s/SECTION/$section/g;
+  $to_create=~s/ARCH/$arch/g;
+  unless(-e $repo->{path}."/".$to_create){
+  mkdir($repo->{path}."/".$to_create);
+  system "chgrp ".$config->{group_owner}.' '.$repo->{path}."/".$to_create." 2>/dev/null" if $config->{group_owner};
+  }
+  }
+  }
+  }
+  }
+}
+sub add_files {
+  my ($repo, $section,@files)=@_;
+  my $DN=$repo->{distro}->{name};
+  my $SN=$section;
+  create_dirs();
+
+#  system("cp $file $path/pool-$distro/$section/");
+  foreach my $file(@files){
+    unless(-e $file){
+      print STDERR "ERROR:\n\tCouldn't find file $file.  NO FILES ADDED\n";
+      exit;
+    }
+  }
+  foreach my $file(@files){
+    my ($distro, $path,$keyring)=($repo->{distro}->{name},$repo->{path},$repo->{keyring});
+    system("cp $file $path/pool-$distro/$section/");
+    print "$file added to the $distro repository\n";
+  }
+  print "Don't forget to rebuild the repository!\n";
+  exit;
+}
+
+#my $config=read_config('./lbrepos.yaml');
+sub rebuild_repo {
+my @Extensions=(".bz2",".gz","",".base");
+my $confpath=$config->{ftparchive};
+foreach my $repo_name(keys %{$config->{repositories}}){
+  my $repo=$config->{repositories}->{$repo_name};
+  my ($distro, $path,$keyring)=($repo->{distro}->{name},$repo->{path},$repo->{keyring});
+  foreach my $arch(@{$repo->{distro}->{arch} }){
+  my ($distro, $path,$keyring)=($repo->{distro}->{name},$repo->{path},$repo->{keyring});
+  chdir($path) || die $!;
+  system("gzip -c dists/$distro/main/binary-$arch/Packages > dists/$distro/main/binary-$arch/Packages.gz");
+  system("bzip2 -c dists/$distro/main/binary-$arch/Packages > dists/$distro/main/binary-$arch/Packages.bz2");
+  system("chgrp -R ".$config->{group_owner}." $path/dists/$distro/main/binary-$arch"." 2>/dev/null") if $config->{group_owner};
+  system("chmod -R 775 $path/dists/$distro/main/binary-$arch");
+  }
+
+}
+}
+sub gen_sigs(){
+  foreach my $repo_name(keys %{$config->{repositories}}){
+  my $repo=$config->{repositories}->{$repo_name};
+  my ($distro, $path,$keyring)=($repo->{distro}->{name},$repo->{path},$repo->{keyring});
+  chdir($path) || die $!;
+  system "rm dists/$distro/Release.gpg dists/$distro/Release.gpg 2>/dev/null";
+  system("gpg --home $keyring --sign -ba -o dists/$distro/Release.gpg dists/$distro/Release");
+  foreach my $ext('','.gpg'){
+    system("chgrp ".$config->{group_owner}." dists/$distro/Release".$ext." 2>/dev/null") if $config->{group_owner};
+    system("chmod 775 dists/$distro/Release".$ext);
+  }
+}
+}
+sub read_config {
+  my $filename=shift || "/etc/lb_repos.yaml";
+  local $/='';
+  open CONFIG, "<$filename" || die $!;
+  my $config=<CONFIG>;
+  close CONFIG;
+  return YAML::Load($config);
+}
+
+sub gen_packages {
+  my $repo=shift;
+#  foreach($repo->{distro})
+  my $distro=$repo->{distro};
+  my %files;
+  foreach(@{$distro->{arch}}){
+    $files{$_}={};
+  }
+  my($path, $distroname)=($repo->{path}, $distro->{name});
+  foreach my $section (@{$distro->{sections}}){
+  opendir DH, "$path/pool-$distroname/$section/" || die "COULDN'T OPEN PATH";
+  while (my $ent=readdir(DH)){
+    my $full_ent="$path/pool-$distroname/$section/$ent";
+    next if -d $full_ent;
+    my %tv;
+    my $data=`dpkg -I $full_ent control`;
+  	if ($data eq ""){
+	    warn sprintf("Couldn't call dpkg-deb on %s: %s, skipping package", $ent, $!)."\n";
+	    next;
+	  }
+  	if ($?) {
+	    warn sprintf(_g("\`dpkg-deb -I %s control' exited with %d, skipping package"), $ent, $?)."\n";
+	    next;
+  	}
+	  while ($data =~ s/^\n*(\S+):[ \t]*(.*(\n[ \t].*)*)\n//) {
+	    my ($key,$value)= (lc $1,$2);
+	    if (defined($kmap{$key})) { $key= $kmap{$key}; }
+	    if (defined($field_case{$key})) { $key= $field_case{$key}; }
+	    $value =~ s/\s+$//;
+	    $tv{$key}= $value;
+	  }
+  	my @stat= stat($full_ent) or die sprintf("Couldn't stat %s: %s", $full_ent, $!)."\n";
+  	open(C,"md5sum <$full_ent |") || die "$full_ent $!";
+  	chop($_=<C>); close(C); $? and die sprintf("\`md5sum < %s' exited with %d", $full_ent, $?)."\n";
+  	$tv{'Size'}= $stat[7];
+	
+  	if (defined $tv{Revision} and length($tv{Revision})) {
+	    $tv{Version}.= '-'.$tv{Revision};
+	    delete $tv{Revision};
+  	}
+    my $name=delete $tv{Package};
+    $files{$tv{Architecture}}->{$name}=\%tv;
+  }
+  }
+  foreach my $arch (@{$distro->{arch}}){
+    my $distro_name=$repo->{distro}->{name};
+    my $packages_name="$path/dists/$distro_name/main/binary-$arch/Packages";
+    unlink($packages_name);
+    open(PACKAGES, ">$packages_name") || die "couldnt open $packages_name $!";
+    foreach my $p(sort keys %{ $files{$arch}}){
+      my $package=$files{$arch}->{$p};
+      my ($distro_name, $path,$keyring)=($repo->{distro}->{name},$repo->{path},$repo->{keyring});
+      my $record= "Package: $p\n";
+      for my $key (@fieldpri) {
+        next unless defined $$package{$key};
+        $record .= "$key: $$package{$key}\n";
+      }
+      $record .= "\n";
+      print PACKAGES $record; 
+    }
+    my $tarch='all';
+    foreach my $p(sort keys %{ $files{$tarch}}){
+      my $package=$files{$tarch}->{$p};
+      my ($distro_name, $path,$keyring)=($repo->{distro}->{name},$repo->{path},$repo->{keyring});
+      my $record= "Package: $p\n";
+      for my $key (@fieldpri) {
+        next unless defined $$package{$key};
+        $record .= "$key: $$package{$key}\n";
+      }
+      $record .= "\n";
+      print PACKAGES $record; 
+    }
+    close PACKAGES;
+  }
+}
+
+sub gen_releases {
+  my $repo=shift;
+  my $url=shift;
+#  foreach($repo->{distro})
+  my $distro=$repo->{distro};
+my @months = qw( Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec );
+my @days = qw( Sun Mon Tue Wed Thu Fri Sat Sun);
+my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) =gmtime();
+
+  my $path=$repo->{path};
+  my $prefix="$path/dists/$distro->{name}/" ;
+  my %files=(Release => $prefix."Release");
+  my %md5;
+  my %sha1;
+  my %sizes;
+  foreach my $section (@{$distro->{sections}}){
+    foreach my $arch (@{$distro->{arch}}){
+      foreach my $ext ('','.gz','.bz2'){
+        my $filename="$section/binary-$arch/Packages$ext";
+        next unless -e $prefix.$filename;
+        $files{$filename}=$prefix.$filename;
+      }
+    }
+  }
+  my $md5s="";
+  my $sha1s="";
+  foreach my $filename(sort keys %files){
+    my $file=$files{$filename};
+    my $rfile=$file;
+    $file="/dev/null" if $filename eq "Release";
+    `md5sum $file`=~/([\da-f]{32})/o;
+    my $md5=$1;
+    `sha1sum $file`=~/([\da-f]{40})/o;
+    my $sha1=$1;
+    my $size=-s $file;
+    my $fsize=' ' x (16-length($size)) . $size;
+    $md5s.=" $md5 $fsize $filename\n";
+    $sha1s.=" $sha1 $fsize $filename\n";
+  }
+  foreach my $filename(sort keys %files){
+    my $file=$files{$filename};
+  }
+  my $output=
+"Architectures: ".join(' ',@{$distro->{arch}})."
+Codename: $distro->{name}
+Components: ".join(' ',@{$distro->{sections}})."
+Date: "."$days[$wday], ".sprintf("%02d", $mday )." $months[$mon] ".($year+1900)." $hour:$min:$sec UTC"." 
+Description: Packaged by jwl.
+Label: (=) ( ".$url." )
+Origin: http://$url/
+Suite: $distro->{name}
+Version: $distro->{version}";
+$output.="
+MD5Sum:
+$md5s" if grep /md5/i,@{$distro->{hashes}};
+$output.=
+"SHA1:
+$sha1s" if grep /sha1/i,@{$distro->{hashes}};
+  my $filename="$path/dists/$distro->{name}/Release";
+  open RELEASE, ">$filename" || die "can't open file $filename";
+  print RELEASE $output;
+  close RELEASE;
+}
+
