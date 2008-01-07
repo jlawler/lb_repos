@@ -1,0 +1,6 @@
+longbranch-repos (0.1-1) unstable; urgency=low
+
+  * Initial release (Closes: #nnnn)  <nnnn is the bug number of your ITP>
+
+ -- Jeremy Lawler <jlawler@crazygeek.org>  Sun,  6 Jan 2008 17:53:31 -0600
+

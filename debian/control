@@ -1,0 +1,12 @@
+Source: longbranch-repos
+Section: admin
+Priority: extra
+Maintainer: Jeremy Lawler <jlawler@crazygeek.org>
+Build-Depends: debhelper (>= 5)
+Standards-Version: 3.7.2
+
+Package: longbranch-repos
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: longbranch's debian repository automater 
+ this is the longbranch debian repository builder.  It makes is easy to build and maintain debian repositories. 
