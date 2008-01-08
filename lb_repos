@@ -237,6 +237,9 @@ sub gen_packages {
 	    $value =~ s/\s+$//;
 	    $tv{$key}= $value;
 	  }
+    $tv{'Filename'}="/pool-$distroname/$section/$ent";
+    `md5sum $full_ent`=~/([\da-f]{32})/o;
+    $tv{'MD5sum'}=$1;
   	my @stat= stat($full_ent) or die sprintf("Couldn't stat %s: %s", $full_ent, $!)."\n";
   	open(C,"md5sum <$full_ent |") || die "$full_ent $!";
   	chop($_=<C>); close(C); $? and die sprintf("\`md5sum < %s' exited with %d", $full_ent, $?)."\n";
