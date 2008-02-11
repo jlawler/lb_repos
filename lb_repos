@@ -6,9 +6,11 @@ use Getopt::Long;
 use Data::Dumper;
 use YAML;
 
+
 sub gen_sigs();
 my $default_config_file="/etc/lb_repos.yaml";
 my $config_file;
+my $command_name=get_command_name();
 GetOptions('config=s'=>\$config_file);
 $config_file = $default_config_file unless $config_file;
 die "cannot open config file $config_file\n" unless -e $config_file;
@@ -42,14 +44,14 @@ dists/DIST/SECTION/binary-ARCH
 pool-DIST/SECTION
 );
 my $usage="
-lb_repos:  Builds and maintains package repositories.
+$command_name:  Builds and maintains package repositories.
 \tPlease note that you MUST rebuild after you add files!
 
-\tTo add files:  lb_repos add DISTRO FILES
+\tTo add files:  $command_name add DISTRO FILES
 
-\tTo rebuild the repositories:  lb_repos rebuild
+\tTo rebuild the repositories:  $command_name rebuild
 
-\tTo  list files in the repositories:  lb_repos list [distro][/section] 
+\tTo  list files in the repositories:  $command_name list [distro][/section] 
 
 ";
 $command="" unless $command;
@@ -347,5 +349,9 @@ $sha1s" if grep /sha1/i,@{$distro->{hashes}};
   open RELEASE, ">$filename" || die "can't open file $filename";
   print RELEASE $output;
   close RELEASE;
+}
+sub get_command_name {
+  my @a=(split(/\//,$0));
+  return pop @a;
 }
 
