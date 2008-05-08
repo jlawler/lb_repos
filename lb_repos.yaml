@@ -4,19 +4,19 @@ repositories:
   path: /home/jlawler/repos/var/www/debian/www
   keyring:  /home/jlawler/repos/var/www/keyring
   distro:
-   name : etch
-   version : 4.0
-   simlink : stable
-   sections: [main]
-   arch: [i386, amd64]
-   hashes: [md5]
+   - name : etch
+     version : 4.0
+     simlink : stable
+     sections: [main]
+     arch: [i386, amd64]
+     hashes: [md5]
  ubuntu.cashnetusa.com:
   path: /home/jlawler/repos/var/www/ubuntu/www
   keyring:  /home/jlawler/repos/var/www/keyring
   distro:
-   hashes: [md5, sha1]
-   name: dapper
-   version : 6.06
-   sections: [main]
-   arch: [i386, amd64]
+   - hashes: [md5, sha1]
+     name: dapper
+     version : 6.06
+     sections: [main]
+     arch: [i386, amd64]
 
