@@ -1,6 +1,12 @@
+longbranch-repos (0.1-1ubuntu1) gutsy; urgency=low
+
+  * Quick fix the "help" page.
+
+ -- jlawler <jlawler@euler.cashnetusa.com>  Mon, 11 Feb 2008 15:46:15 -0600
+
 longbranch-repos (0.1-1) unstable; urgency=low
 
-  * Initial release (Closes: #nnnn)  <nnnn is the bug number of your ITP>
+  * Initial release 
 
  -- Jeremy Lawler <jlawler@crazygeek.org>  Sun,  6 Jan 2008 17:53:31 -0600
 

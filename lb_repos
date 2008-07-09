@@ -147,7 +147,8 @@ sub gen_sigs(){
     foreach my $distro (@{$repo->{distro}}){
     my ($distro_name, $path,$keyring)=($distro->{name},$repo->{path},$repo->{keyring});
     chdir($path) || die $!;
-    system "rm dists/$distro_name/Release.gpg dists/$distro_name/Release.gpg 2>/dev/null";
+    #system "rm dists/$distro_name/Release.gpg dists/$distro_name/Release.gpg 2>/dev/null";
+    system "rm dists/$distro_name/Release.gpg";
     system("gpg --home $keyring --sign -ba -o dists/$distro_name/Release.gpg dists/$distro_name/Release");
     foreach my $ext('','.gpg'){
       system("chgrp ".$config->{group_owner}." dists/$distro_name/Release".$ext." 2>/dev/null") if $config->{group_owner};
@@ -203,10 +204,9 @@ sub gen_packages {
       my $name=delete $tv{Package};
       $files{$tv{Architecture}}->{$name}=\%tv;
     }
-  }
   foreach my $arch (@{$distro->{arch}}){
     my $distro_name=$distro->{name};
-    my $packages_name="$path/dists/$distro_name/main/binary-$arch/Packages";
+    my $packages_name="$path/dists/$distro_name/$section/binary-$arch/Packages";
     unlink($packages_name);
     open(PACKAGES, ">$packages_name") || die "couldnt open $packages_name $!";
     foreach my $p(sort keys %{ $files{$arch}}){
@@ -233,6 +233,7 @@ sub gen_packages {
       print PACKAGES $record; 
     }
     close PACKAGES;
+  }
   }
   }
 }
@@ -307,15 +308,17 @@ sub rebuild_repo {
   foreach my $repo_name(keys %{$config->{repositories}}){
     my $repo=$config->{repositories}->{$repo_name};
     foreach my $distro (@{$repo->{distro}}){
-    my ($distro_name, $path,$keyring)=($distro->{name},$repo->{path},$repo->{keyring});
-    foreach my $arch(@{$distro->{arch} }){
-      my ($distro, $path,$keyring)=($distro->{name},$repo->{path},$repo->{keyring});
-      chdir($path) || die $!;
-      system("gzip -c dists/$distro_name/main/binary-$arch/Packages > dists/$distro/main/binary-$arch/Packages.gz");
-      system("bzip2 -c dists/$distro_name/main/binary-$arch/Packages > dists/$distro/main/binary-$arch/Packages.bz2");
-      system("chgrp -R ".$config->{group_owner}." $path/dists/$distro_name/main/binary-$arch"." 2>/dev/null") if $config->{group_owner};
-      system("chmod -R 775 $path/dists/$distro_name/main/binary-$arch");
-    }
+      my ($distro_name, $path,$keyring)=($distro->{name},$repo->{path},$repo->{keyring});
+      foreach my $arch(@{$distro->{arch} }){
+        foreach my $section(@{$distro->{sections} }){
+          my ($distro, $path,$keyring)=($distro->{name},$repo->{path},$repo->{keyring});
+          chdir($path) || die $!;
+          system("gzip -c dists/$distro_name/$section/binary-$arch/Packages > dists/$distro/$section/binary-$arch/Packages.gz");
+          system("bzip2 -c dists/$distro_name/$section/binary-$arch/Packages > dists/$distro/$section/binary-$arch/Packages.bz2");
+          system("chgrp -R ".$config->{group_owner}." $path/dists/$distro_name/$section/binary-$arch"." 2>/dev/null") if $config->{group_owner};
+          system("chmod -R 775 $path/dists/$distro_name/$section/binary-$arch");
+        }
+      }
     }
   }
 }
