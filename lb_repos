@@ -5,12 +5,19 @@ use Cwd;
 use Getopt::Long;
 use Data::Dumper;
 use YAML;
+use File::Path;
+use Compress::Zlib;
+use File::Temp qw/ tempfile unlink0 /;
 
 use constant  DEFAULT_CONFIG_FILE => "/etc/lb_repos.yaml";
 my $config_file=DEFAULT_CONFIG_FILE;
 my $command_name=get_command_name();
 
+
 #DEFINE ALL THE CONSTANT/INITIALIZE DATA STRUCTURES
+my $RSYNC = "/usr/bin/rsync";
+my $RSYNC_OPTIONS = "--progress";
+
 my %kmap= (
      optional         => 'suggests',
      recommended      => 'recommends',
@@ -19,6 +26,7 @@ my %kmap= (
     );
 my @pkg_dep_fields = qw(Replaces Provides Depends Pre-Depends Recommends Suggests Conflicts Enhances Breaks);
 my @src_dep_fields = qw(Build-Depends Build-Depends-Indep Build-Conflicts Build-Conflicts-Indep);
+my @pkg_res_fields = qw(Package Depends Filename Essential);
 
 my @fieldpri = (qw(Package Source Version Architecture Essential Origin Bugs
                    Maintainer Installed-Size), @pkg_dep_fields, qw(Filename
@@ -35,11 +43,13 @@ dists/DIST/SECTION
 dists/DIST/SECTION/binary-ARCH
 pool-DIST/SECTION
 );
+
 my $usage="
 $command_name:  Builds and maintains package repositories.
 \tPlease note that you MUST rebuild after you add files!\n
 \tTo add files:  $command_name add DISTRO FILES\n
 \tTo rebuild the repositories:  $command_name rebuild\n
+\tTo sync packages from a mirror:  $command_name sync_mirror\n
 \tTo  list files in the repositories:  $command_name list [distro][/section]\n\n";
 
 my @months = qw( Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec );
@@ -67,6 +77,8 @@ if($command=~/^(re)?build/){
   list_repository();
 }elsif($command=~/^add/){
   add_package();
+}elsif($command=~/^sync_mirror/){
+  sync_packages();
 }else{
   die $usage;
 }
@@ -81,15 +93,6 @@ sub list_files {
   closedir DH;
   print "\n";
 }
-
-
-
-
-
-
-
-
-
 
 
 sub create_dirs {
@@ -328,15 +331,6 @@ sub rebuild_repo {
 
 
 
-
-
-
-
-
-
-
-
-
 sub read_config {
   my $filename=shift || "/etc/lb_repos.yaml";
   local $/='';
@@ -411,3 +405,165 @@ sub add_package {
 }
 
 
+
+sub sync_packages {
+	sync_mirror_lists();
+  my %package_hash;
+  
+  foreach my $repo_name (keys %{$config->{repositories}}) {
+    my $repo=$config->{repositories}->{$repo_name};
+    foreach my $distro (@{$repo->{distro}}) {
+      foreach my $arch (@{$distro->{arch}}) {
+
+				#build a list of packages available to this distro
+        foreach my $section (@{$distro->{sections}}) {
+					#clear the list
+					%package_hash = ();
+          #build url and directory names
+          my $package_file = "$distro->{mirror_cache}/$distro->{name}/$section/binary-$arch/Packages.gz";
+          print "Reading $package_file ...\n";
+          load_package_list($package_file, \%package_hash);
+
+
+					my @files = ();
+					my @packages = @{$distro->{base_packages}};
+					if ($distro->{include_essential}) {
+						push (@packages, get_essentials(\%package_hash));
+					}
+
+					foreach my $package (@packages) {
+						push (@files, get_list_of_dependencies($package, \%package_hash));
+					}
+					
+					#uniq names
+					@files = keys %{{ map { $_ => 1} @files }};
+
+					#create a temp file to store the list of files that need to be synced
+					my ($fh, $filename) = tempfile() or die("Can't create temp file");
+					print $fh join("\n",@files);
+
+					my $remote_url = "$distro->{mirror_url}/";
+					my $local_dir = "$repo->{path}/pool-$distro->{name}/$section/";
+					my $cmd = "$RSYNC $RSYNC_OPTIONS --no-R --files-from=$filename $remote_url $local_dir";
+					system("$cmd");
+
+					unlink0($fh, $filename) or print "Error unlinking file $filename safely";	
+					$fh->close();
+				}
+      }
+    }
+  }
+  
+	print "Don't forget to rebuild the repository!\n";
+  exit;
+}
+
+sub get_essentials {
+	my $package_hash = shift;
+	my @packages;
+	while ((my $key, my $value) = each (%{$package_hash})) {
+		if ($value->{Essential} && $value->{Essential} =~ /yes/i) {
+			push (@packages, $key);
+		}
+	}
+	return @packages;
+}
+
+sub get_list_of_dependencies {
+  my $package = shift; 
+  my $package_hash = shift;
+  my $version;
+
+  my %files = (); 
+  my @required = ($package);
+
+  while ($package = shift @required) {
+    #we'll parse the version, but for now, we'll forget about it
+    #since we'll assume the parent repo maintains the appropriate
+    #version
+    ($package, $version) = split(" ", $package, 2);
+    chomp $package;
+
+    if ($files{$package}) {
+      next;
+    }
+
+    if ($package_hash->{$package}){
+      $files{$package} = $package_hash->{$package}->{"Filename"};
+      if ($package_hash->{$package}->{"Depends"}) {
+        unshift(@required, split(',', $package_hash->{$package}->{"Depends"}));
+      }
+    } 
+    else {
+      print "Can't resolve $package\n";
+    }
+
+  }
+
+  return values %files;
+}
+
+
+sub sync_mirror_lists {
+  foreach my $repo_name (keys %{$config->{repositories}}) {
+    my $repo=$config->{repositories}->{$repo_name};
+    foreach my $distro (@{$repo->{distro}}) {
+      foreach my $section (@{$distro->{sections}}) {
+        foreach my $arch (@{$distro->{arch}}) {
+          #build url and directory names
+          my $remote_url = "$distro->{mirror_url}/dists/$distro->{name}/$section/binary-$arch/Packages.gz";
+          my $local_dir = "$distro->{mirror_cache}/$distro->{name}/$section/binary-$arch";
+          my $rsync_cmd = "$RSYNC $RSYNC_OPTIONS $remote_url $local_dir";
+          unless ( -e "$local_dir"  ) {
+            mkpath( "$local_dir" );
+          }	 
+          #sync the Package list
+          system($rsync_cmd);
+
+        }
+      }
+    }
+  }
+}
+
+#reads a gzipped package list and parses teh important information
+#required for resolving dependencies.
+sub load_package_list {
+  my $list_name = shift;
+  my $package_hash = shift;
+  my $gz = gzopen($list_name, "rb") or die("Couldn't read $list_name");
+
+  my $package;
+
+  while ($gz->gzreadline($_) > 0) {
+    if (/^Package: (.+)$/) {  ##Package:
+      $package = $1;
+			
+			#this is the beginning of a package section ...
+			#for now, with out better reasoning, we will prefer
+			#a package "named" for the dependency, rather than
+			#"providing" the dependency.  
+			if ($package_hash->{$package}) {
+				delete $package_hash->{$package};
+			}
+      $package_hash->{$package}->{"Package"} = $1;
+    } 
+    elsif (/^Provides: (.+)$/) {
+      foreach my $provision (split(", ", $1)) {
+        chomp $provision;
+        $package_hash->{$provision} = $package_hash->{$package};
+      }
+    }
+    elsif (/^\s*$/) {         ##blank line
+      $package = "";
+    }
+    elsif (/^(\w+): (.+)$/){
+      if (grep (/$1/, @pkg_res_fields)) {
+        $package_hash->{$package}->{$1} = $2;
+      }
+    }
+  }
+
+  $gz->gzclose();
+
+}

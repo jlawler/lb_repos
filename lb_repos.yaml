@@ -1,7 +1,7 @@
 group_owner: packages
 repositories:
  debian.cashnetusa.com:
-  path: /home/jlawler/repos/var/www/debian/www
+  path: /home/jlawler/repos/repo/debian/www
   keyring:  /home/jlawler/repos/var/www/keyring
   distro:
    - name : etch
@@ -10,8 +10,12 @@ repositories:
      sections: [main]
      arch: [i386, amd64]
      hashes: [md5]
+     mirror_url: "rsync://http.us.debian.org/debian"
+     mirror_cache: "/home/jlawler/repos/repo/debian/cache"
+     base_packages: [base-files, coreutils, base-passwd, awk]
+     include_essential: yes
  ubuntu.cashnetusa.com:
-  path: /home/jlawler/repos/var/www/ubuntu/www
+  path: /home/jlawler/repos/repo/ubuntu/www
   keyring:  /home/jlawler/repos/var/www/keyring
   distro:
    - hashes: [md5, sha1]
@@ -19,4 +23,8 @@ repositories:
      version : 6.06
      sections: [main]
      arch: [i386, amd64]
+     mirror_url: "rsync://us.archive.ubuntu.com/ubuntu"
+     mirror_cache: /home/jlawler/repos/repo/ubuntu/cache
+     base_packages: [ubuntu-minimal]
+     include_essential: yes
 
