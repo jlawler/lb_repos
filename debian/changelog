@@ -1,3 +1,17 @@
+longbranch-repos (0.3) intrepid; urgency=low
+
+  * Fixed a ludicrous bug, and bumped the version number again just to be
+    safe. 
+
+ -- Jeremy Lawler <jlawler@euler>  Thu, 17 Jul 2008 09:51:41 -0500
+
+longbranch-repos (0.2-1ubuntu2) intrepid; urgency=low
+
+  * Multiple versions of the same package can coexist.  Also, Josh's mirroring
+    stuff merged in. 
+
+ -- Jeremy Lawler <jlawler@euler>  Thu, 17 Jul 2008 09:46:36 -0500
+
 longbranch-repos (0.1-1ubuntu1) gutsy; urgency=low
 
   * Quick fix the "help" page.
