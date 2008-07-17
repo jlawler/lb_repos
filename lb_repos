@@ -19,7 +19,6 @@ foreach(@config_file_search_path){
 GetOptions('config=s'=>\$config_file);
 die "Couldn't find a valid config file!" unless $config_file;
 die "cannot open config file $config_file\n" unless -e $config_file;
-print "$config_file\n";
 
 my $command_name=get_command_name();
 
