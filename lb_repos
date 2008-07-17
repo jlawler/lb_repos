@@ -111,7 +111,7 @@ sub create_dirs {
       $to_create=~s/DIST/$DN/g;
       unless(-e $repo->{path}."/".$to_create){
         mkdir($repo->{path}."/".$to_create);
-        system "chgrp ".$config->{group_owner}.' '.$repo->{path}."/".$to_create." 2>/dev/null" if $config->{group_owner};
+        system "chgrp ".$config->{group_owner}.' '.$repo->{path}."/".$to_create." 2>/dev/null" if $config->{group_owner} ;
       }
     }
     foreach my $utc(@new_section_paths){
@@ -158,15 +158,25 @@ sub gen_sigs(){
     chdir($path) || die $!;
     #system "rm dists/$distro_name/Release.gpg dists/$distro_name/Release.gpg 2>/dev/null";
     system "rm dists/$distro_name/Release.gpg";
-    system("gpg --home $keyring --sign -ba -o dists/$distro_name/Release.gpg dists/$distro_name/Release");
+    system("gpg --quiet --no-permission-warning --home $keyring --sign -ba -o dists/$distro_name/Release.gpg dists/$distro_name/Release");
     foreach my $ext('','.gpg'){
-      system("chgrp ".$config->{group_owner}." dists/$distro_name/Release".$ext." 2>/dev/null") if $config->{group_owner};
-      system("chmod 775 dists/$distro_name/Release".$ext);
+      system("chgrp ".$config->{group_owner}." dists/$distro_name/Release".$ext." 2>/dev/null") if $config->{group_owner} && ($>==0 || $>==uid("dists/$distro_name/Release".$ext));
+      system("chmod 775 dists/$distro_name/Release".$ext) if ($>==0 || $>==uid("dists/$distro_name/Release".$ext));
     }
     }
   }
 }
 
+sub uid {
+  my $file=shift;
+  my @temp=stat($file);
+  return $temp[4];
+}
+sub gid {
+  my $file=shift;
+  my @temp=stat($file);
+  return $temp[5];
+}
 
 sub gen_packages {
   my $repo=shift;
@@ -324,8 +334,8 @@ sub rebuild_repo {
           chdir($path) || die $!;
           system("gzip -c dists/$distro_name/$section/binary-$arch/Packages > dists/$distro/$section/binary-$arch/Packages.gz");
           system("bzip2 -c dists/$distro_name/$section/binary-$arch/Packages > dists/$distro/$section/binary-$arch/Packages.bz2");
-          system("chgrp -R ".$config->{group_owner}." $path/dists/$distro_name/$section/binary-$arch"." 2>/dev/null") if $config->{group_owner};
-          system("chmod -R 775 $path/dists/$distro_name/$section/binary-$arch");
+          system("chgrp -R ".$config->{group_owner}." $path/dists/$distro_name/$section/binary-$arch"." 2>/dev/null") if $config->{group_owner}  && ($>==0 || $>==uid("$path/dists/$distro_name/$section/binary-$arch"));
+          system("chmod -R 775 $path/dists/$distro_name/$section/binary-$arch")  if($>==0 || $>==uid("$path/dists/$distro_name/$section/binary-$arch"));
         }
       }
     }
