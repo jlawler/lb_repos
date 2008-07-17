@@ -211,7 +211,7 @@ sub gen_packages {
   	    $tv{Version}.= '-'.$tv{Revision};
   	    delete $tv{Revision};
     	}
-      my $name=delete $tv{Package}.$tv{Version};
+      my $name=$tv{Package}.$tv{Version};
       $files{$tv{Architecture}}->{$name}=\%tv;
     }
   foreach my $arch (@{$distro->{arch}}){
