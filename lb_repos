@@ -9,10 +9,19 @@ use File::Path;
 use Compress::Zlib;
 use File::Temp qw/ tempfile unlink0 /;
 
-use constant  DEFAULT_CONFIG_FILE => "/etc/lb_repos.yaml";
-my $config_file=DEFAULT_CONFIG_FILE;
-my $command_name=get_command_name();
 
+my @config_file_search_path=qw!/etc/lb_repos.yaml!;
+my $config_file='';
+foreach(@config_file_search_path){
+  $config_file=$_ if -e $_ && !$config_file;
+}
+
+GetOptions('config=s'=>\$config_file);
+die "Couldn't find a valid config file!" unless $config_file;
+die "cannot open config file $config_file\n" unless -e $config_file;
+print "$config_file\n";
+
+my $command_name=get_command_name();
 
 #DEFINE ALL THE CONSTANT/INITIALIZE DATA STRUCTURES
 my $RSYNC = "/usr/bin/rsync";
@@ -63,8 +72,6 @@ my %field_case;
 
 sub gen_sigs();
 
-GetOptions('config=s'=>\$config_file);
-die "cannot open config file $config_file\n" unless -e $config_file;
 my ($command, $add_to, @files)=grep(!/^--/,@ARGV);
 my $config=read_config($config_file);
 
@@ -204,7 +211,7 @@ sub gen_packages {
   	    $tv{Version}.= '-'.$tv{Revision};
   	    delete $tv{Revision};
     	}
-      my $name=delete $tv{Package};
+      my $name=delete $tv{Package}.$tv{Version};
       $files{$tv{Architecture}}->{$name}=\%tv;
     }
   foreach my $arch (@{$distro->{arch}}){
@@ -215,7 +222,7 @@ sub gen_packages {
     foreach my $p(sort keys %{ $files{$arch}}){
       my $package=$files{$arch}->{$p};
       my ($distro_name, $path,$keyring)=($distro->{name},$repo->{path},$repo->{keyring});
-      my $record= "Package: $p\n";
+      my $record= "";
       for my $key (@fieldpri) {
         next unless defined $$package{$key};
         $record .= "$key: $$package{$key}\n";
@@ -227,7 +234,7 @@ sub gen_packages {
     foreach my $p(sort keys %{ $files{$tarch}}){
       my $package=$files{$tarch}->{$p};
       my ($distro_name, $path,$keyring)=($distro->{name},$repo->{path},$repo->{keyring});
-      my $record= "Package: $p\n";
+      my $record= "";
       for my $key (@fieldpri) {
         next unless defined $$package{$key};
         $record .= "$key: $$package{$key}\n";
@@ -332,7 +339,7 @@ sub rebuild_repo {
 
 
 sub read_config {
-  my $filename=shift || "/etc/lb_repos.yaml";
+  my $filename=shift;
   local $/='';
   open CONFIG, "<$filename" || die $!;
   my $config=<CONFIG>;
