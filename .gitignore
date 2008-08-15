@@ -1,0 +1,4 @@
+*-stamp
+debian/DEBIAN
+debian/longbranch-repos
+debian/files
