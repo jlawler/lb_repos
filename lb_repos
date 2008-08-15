@@ -119,6 +119,7 @@ sub list_files {
 }
 
 
+
 sub create_dirs {
   foreach my $repo_name(keys %{$config->{repositories}}){
     my $repo=$config->{repositories}->{$repo_name};
@@ -130,6 +131,7 @@ sub create_dirs {
       unless(-e $repo->{path}."/".$to_create){
         mkdir($repo->{path}."/".$to_create);
         system "chgrp ".$config->{group_owner}.' '.$repo->{path}."/".$to_create." 2>/dev/null" if $config->{group_owner} ;
+        system "chmod g+s ".$repo->{path}."/".$to_create." 2>/dev/null" if $config->{group_owner};
       }
     }
     foreach my $utc(@new_section_paths){
@@ -142,6 +144,7 @@ sub create_dirs {
           unless(-e $repo->{path}."/".$to_create){
             mkdir($repo->{path}."/".$to_create);
             system "chgrp ".$config->{group_owner}.' '.$repo->{path}."/".$to_create." 2>/dev/null" if $config->{group_owner};
+            system "chmod g+s ".$repo->{path}."/".$to_create." 2>/dev/null" if $config->{group_owner};
           }
         }
       }
