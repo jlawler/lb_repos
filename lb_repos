@@ -10,19 +10,10 @@ use Compress::Zlib;
 use File::Temp qw/ tempfile unlink0 /;
 
 
-my @config_file_search_path=qw!/etc/lb_repos.yaml!;
-my $config_file='';
-foreach(@config_file_search_path){
-  $config_file=$_ if -e $_ && !$config_file;
-}
-
-GetOptions('config=s'=>\$config_file);
-die "Couldn't find a valid config file!" unless $config_file;
-die "cannot open config file $config_file\n" unless -e $config_file;
-
-my $command_name=get_command_name();
 
 #DEFINE ALL THE CONSTANT/INITIALIZE DATA STRUCTURES
+
+my @config_file_search_path=qw!/etc/lb_repos.yaml!;
 my $RSYNC = "/usr/bin/rsync";
 my $RSYNC_OPTIONS = "--progress";
 
@@ -72,6 +63,19 @@ my %field_case;
 @field_case{map{lc($_)} @fieldpri} = @fieldpri;
 
 #END CONSTANTS DEFINITION
+
+# int main(... is here
+my $config_file='';
+foreach(@config_file_search_path){
+  $config_file=$_ if -e $_ && !$config_file;
+}
+
+GetOptions('config=s'=>\$config_file);
+die "Couldn't find a valid config file!" unless $config_file;
+die "cannot open config file $config_file\n" unless -e $config_file;
+
+my $command_name=get_command_name();
+#End top level command
 
 sub create_release_signature;
 #I might be dumb, but too many functions reference each other so I had to
