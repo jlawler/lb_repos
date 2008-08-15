@@ -27,29 +27,33 @@ my $RSYNC = "/usr/bin/rsync";
 my $RSYNC_OPTIONS = "--progress";
 
 my %kmap= (
-     optional         => 'suggests',
-     recommended      => 'recommends',
-     class            => 'priority',
-     package_revision => 'revision',
-    );
-my @pkg_dep_fields = qw(Replaces Provides Depends Pre-Depends Recommends Suggests Conflicts Enhances Breaks);
-my @src_dep_fields = qw(Build-Depends Build-Depends-Indep Build-Conflicts Build-Conflicts-Indep);
+  optional         => 'suggests',
+  recommended      => 'recommends',
+  class            => 'priority',
+  package_revision => 'revision',
+);
+my @pkg_dep_fields = qw(Replaces Provides Depends Pre-Depends 
+  Recommends Suggests Conflicts Enhances Breaks);
+
+my @src_dep_fields = qw(Build-Depends Build-Depends-Indep 
+  Build-Conflicts Build-Conflicts-Indep);
+
 my @pkg_res_fields = qw(Package Depends Filename Essential);
 
 my @fieldpri = (qw(Package Source Version Architecture Essential Origin Bugs
-                   Maintainer Installed-Size), @pkg_dep_fields, qw(Filename
-                   Size MD5sum Section Priority Description));
+  Maintainer Installed-Size), @pkg_dep_fields, 
+  qw(Filename Size MD5sum Section Priority Description));
 
 
 my @new_dist_paths=qw(
-dists
-dists/DIST
-pool-DIST
+  dists
+  dists/DIST
+  pool-DIST
 );
 my @new_section_paths=qw(
-dists/DIST/SECTION
-dists/DIST/SECTION/binary-ARCH
-pool-DIST/SECTION
+  dists/DIST/SECTION
+  dists/DIST/SECTION/binary-ARCH
+  pool-DIST/SECTION
 );
 
 my $usage="
