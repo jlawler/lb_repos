@@ -23,6 +23,7 @@ my %kmap= (
   class            => 'priority',
   package_revision => 'revision',
 );
+
 my @pkg_dep_fields = qw(Replaces Provides Depends Pre-Depends 
   Recommends Suggests Conflicts Enhances Breaks);
 
@@ -41,6 +42,7 @@ my @new_dist_paths=qw(
   dists/DIST
   pool-DIST
 );
+
 my @new_section_paths=qw(
   dists/DIST/SECTION
   dists/DIST/SECTION/binary-ARCH
@@ -107,6 +109,7 @@ if($command=~/^(re)?build/){
 #FIXME TODO:  Make this differentiate between files that have been added
 #but the repo hasn't been rebuilt...
 #Also, do more stuff to show if there are multiple version.
+#Also, display some of the arch information
 sub list_files {
   my ($repo,$distro, $section)=@_;
   my ($path,$keyring)=($repo->{path},$repo->{keyring});
@@ -124,32 +127,32 @@ sub create_dirs {
   foreach my $repo_name(keys %{$config->{repositories}}){
     my $repo=$config->{repositories}->{$repo_name};
     foreach my $distro (@{$repo->{distro}}){ 
-    my $DN=$distro->{name};
-    foreach my $to_create_o(@new_dist_paths){
-      my $to_create=$to_create_o;
-      $to_create=~s/DIST/$DN/g;
-      unless(-e $repo->{path}."/".$to_create){
-        mkdir($repo->{path}."/".$to_create);
-        system "chgrp ".$config->{group_owner}.' '.$repo->{path}."/".$to_create." 2>/dev/null" if $config->{group_owner} ;
-        system "chmod g+s ".$repo->{path}."/".$to_create." 2>/dev/null" if $config->{group_owner};
+      my $DN=$distro->{name};
+      foreach my $to_create_o(@new_dist_paths){
+        my $to_create=$to_create_o;
+        $to_create=~s/DIST/$DN/g;
+        unless(-e $repo->{path}."/".$to_create){
+          mkdir($repo->{path}."/".$to_create);
+          system "chgrp ".$config->{group_owner}.' '.$repo->{path}."/".$to_create." 2>/dev/null" if $config->{group_owner} ;
+          system "chmod g+s ".$repo->{path}."/".$to_create." 2>/dev/null" if $config->{group_owner};
+        }
       }
-    }
-    foreach my $utc(@new_section_paths){
-      foreach my $section(@{$distro->{sections}}){
-        foreach my $arch(@{$distro->{arch}}){
-          my $to_create=$utc;
-          $to_create=~s/DIST/$DN/g;
-          $to_create=~s/SECTION/$section/g;
-          $to_create=~s/ARCH/$arch/g;
-          unless(-e $repo->{path}."/".$to_create){
-            mkdir($repo->{path}."/".$to_create);
-            system "chgrp ".$config->{group_owner}.' '.$repo->{path}."/".$to_create." 2>/dev/null" if $config->{group_owner};
-            system "chmod g+s ".$repo->{path}."/".$to_create." 2>/dev/null" if $config->{group_owner};
+      foreach my $utc(@new_section_paths){
+        foreach my $section(@{$distro->{sections}}){
+          foreach my $arch(@{$distro->{arch}}){
+            my $to_create=$utc;
+            $to_create=~s/DIST/$DN/g;
+            $to_create=~s/SECTION/$section/g;
+            $to_create=~s/ARCH/$arch/g;
+            unless(-e $repo->{path}."/".$to_create){
+              mkdir($repo->{path}."/".$to_create);
+              system "chgrp ".$config->{group_owner}.' '.$repo->{path}."/".$to_create." 2>/dev/null" if $config->{group_owner};
+              system "chmod g+s ".$repo->{path}."/".$to_create." 2>/dev/null" if $config->{group_owner};
+            }
           }
         }
       }
     }
-  }
   }
 }
 
@@ -177,15 +180,15 @@ sub create_release_signature {
   foreach my $repo_name(keys %{$config->{repositories}}){
     my $repo=$config->{repositories}->{$repo_name};
     foreach my $distro (@{$repo->{distro}}){
-    my ($distro_name, $path,$keyring)=($distro->{name},$repo->{path},$repo->{keyring});
-    chdir($path) || die $!;
-    #system "rm dists/$distro_name/Release.gpg dists/$distro_name/Release.gpg 2>/dev/null";
-    system "rm dists/$distro_name/Release.gpg";
-    system("gpg --quiet --no-permission-warning --home $keyring --sign -ba -o dists/$distro_name/Release.gpg dists/$distro_name/Release");
-    foreach my $ext('','.gpg'){
-      system("chgrp ".$config->{group_owner}." dists/$distro_name/Release".$ext." 2>/dev/null") if $config->{group_owner} && ($>==0 || $>==uid("dists/$distro_name/Release"));
-      system("chmod 775 dists/$distro_name/Release".$ext) if ($>==0 || $>==uid("dists/$distro_name/Release"));
-    }
+      my ($distro_name, $path,$keyring)=($distro->{name},$repo->{path},$repo->{keyring});
+      chdir($path) || die $!;
+      #system "rm dists/$distro_name/Release.gpg dists/$distro_name/Release.gpg 2>/dev/null";
+      system "rm dists/$distro_name/Release.gpg";
+      system("gpg --quiet --no-permission-warning --home $keyring --sign -ba -o dists/$distro_name/Release.gpg dists/$distro_name/Release");
+      foreach my $ext('','.gpg'){
+        system("chgrp ".$config->{group_owner}." dists/$distro_name/Release".$ext." 2>/dev/null") if $config->{group_owner} && ($>==0 || $>==uid("dists/$distro_name/Release"));
+        system("chmod 775 dists/$distro_name/Release".$ext) if ($>==0 || $>==uid("dists/$distro_name/Release"));
+      }
     }
   }
 }
