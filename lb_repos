@@ -411,6 +411,7 @@ sub list_repository {
       $add_to=$1;
       $section=$2;
     }
+    #foreach_dsa
     foreach my $repo_name(keys %{$config->{repositories}}){
       my $repo=$config->{repositories}->{$repo_name};
       foreach my $distro (@{$repo->{distro}}){
@@ -418,6 +419,7 @@ sub list_repository {
       }
     }
   }else{
+    #foreach_dsa
     foreach my $repo_name(keys %{$config->{repositories}}){
       my $repo=$config->{repositories}->{$repo_name};
       foreach my $distro (@{$repo->{distro}}){
