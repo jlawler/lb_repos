@@ -55,10 +55,10 @@ pool-DIST/SECTION
 my $usage="
 $command_name:  Builds and maintains package repositories.
 \tPlease note that you MUST rebuild after you add files!\n
-\tTo add files:  $command_name add DISTRO FILES\n
-\tTo rebuild the repositories:  $command_name rebuild\n
-\tTo sync packages from a mirror:  $command_name sync_mirror\n
-\tTo  list files in the repositories:  $command_name list [distro][/section]\n\n";
+\tTo add files:  $command_name add DISTRO FILES
+\tTo rebuild the repositories:  $command_name rebuild
+\tTo sync packages from a mirror:  $command_name sync_mirror
+\tTo  list files in the repositories:  $command_name list [distro][/section]\n";
 
 my @months = qw( Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec );
 my @days = qw( Sun Mon Tue Wed Thu Fri Sat Sun);
@@ -69,7 +69,12 @@ my %field_case;
 
 #END CONSTANTS DEFINITION
 
-sub gen_sigs();
+sub create_release_signature;
+#I might be dumb, but too many functions reference each other so I had to
+#prototype some.  Minimize was to prototype this one.
+#
+#FIXME TODO:  I should either prototype them all, none of them. 
+#
 
 my ($command, $add_to, @files)=grep(!/^--/,@ARGV);
 my $config=read_config($config_file);
@@ -149,8 +154,9 @@ sub add_files {
   exit;
 }
 
-
-sub gen_sigs(){
+#Create the cryptographic signature of the repos.  The signature is only of the
+#release file, but the release file contains hashes of the packages files.
+sub create_release_signature {
   foreach my $repo_name(keys %{$config->{repositories}}){
     my $repo=$config->{repositories}->{$repo_name};
     foreach my $distro (@{$repo->{distro}}){
@@ -178,7 +184,8 @@ sub gid {
   return $temp[5];
 }
 
-sub gen_packages {
+#Creates the "master" packages file
+sub create_packages_file {
   my $repo=shift;
   foreach my $distro (@{$repo->{distro}}){
   my %files;
@@ -257,8 +264,9 @@ sub gen_packages {
   }
 }
 
-
-sub gen_releases {
+#creates the release_files.  It's a sort of index of indexes, lists the
+#architectures, what OS I have, etc, etc. 
+sub create_release_files {
   my $repo=shift;
   my $url=shift;
   foreach my $distro (@{$repo->{distro}}){
@@ -322,7 +330,7 @@ $sha1s" if grep /sha1/i,@{$distro->{hashes}};
 }
 
 
-sub rebuild_repo {
+sub create_compressed_packages {
   my $confpath=$config->{ftparchive};
   foreach my $repo_name(keys %{$config->{repositories}}){
     my $repo=$config->{repositories}->{$repo_name};
@@ -364,18 +372,20 @@ sub get_command_name {
 }
 
 
-
+#Regenerate the package lists, regenerate
 sub rebuild_repository {
   create_dirs();
   foreach my $repo_name(keys %{$config->{repositories}}){
-  print "Rebuilding $repo_name\n";
-  gen_packages($config->{repositories}->{$repo_name});
-  rebuild_repo();
-  gen_releases($config->{repositories}->{$repo_name},$repo_name);
+    print "Rebuilding $repo_name\n";
+    create_packages_file($config->{repositories}->{$repo_name});
+    create_compressed_packages();
+    create_release_files($config->{repositories}->{$repo_name},$repo_name);
   }
-  gen_sigs();
+  create_release_signature;
 }
 
+#list all files in the repos.  Right now, this is all files in the repos, not
+#necessarily files exported via the packages list.
 sub list_repository {
   my $section="";
   if($add_to){
@@ -401,6 +411,7 @@ sub list_repository {
   }
 }
 
+#Top-level function that copies a package into the correct place in the repos
 sub add_package {
   unless(@ARGV>2){
     die "invalid number of arguments to add!\n";
@@ -420,7 +431,7 @@ sub add_package {
   die "unable to find distro $add_to\n"; 
 }
 
-
+#Below this is for cloning repos
 
 sub sync_packages {
 	sync_mirror_lists();
@@ -535,7 +546,6 @@ sub sync_mirror_lists {
           }	 
           #sync the Package list
           system($rsync_cmd);
-
         }
       }
     }
@@ -579,7 +589,5 @@ sub load_package_list {
       }
     }
   }
-
   $gz->gzclose();
-
 }
