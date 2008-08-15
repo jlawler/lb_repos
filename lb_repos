@@ -64,7 +64,8 @@ my %field_case;
 
 #END CONSTANTS DEFINITION
 
-# int main(... is here
+#ACTUAL CODE STARTS HERE!  WOOHOO!
+# int main(...)  (ie, top level command starts here)
 my $config_file='';
 foreach(@config_file_search_path){
   $config_file=$_ if -e $_ && !$config_file;
@@ -89,7 +90,8 @@ my $config=read_config($config_file);
 
 $command="" unless $command;
 
-
+#FIXME TODO Add a way to delete files, and/or delete old versions of files
+#Also, add a way to rebuild partial repos
 if($command=~/^(re)?build/){
   rebuild_repository();
 }elsif($command=~/^list/){
@@ -102,6 +104,9 @@ if($command=~/^(re)?build/){
   die $usage;
 }
 
+#FIXME TODO:  Make this differentiate between files that have been added
+#but the repo hasn't been rebuilt...
+#Also, do more stuff to show if there are multiple version.
 sub list_files {
   my ($repo,$distro, $section)=@_;
   my ($path,$keyring)=($repo->{path},$repo->{keyring});
@@ -144,6 +149,7 @@ sub create_dirs {
   }
   }
 }
+
 
 sub add_files {
   my ($repo,$distro,$section,@files)=@_;
@@ -193,6 +199,7 @@ sub gid {
 }
 
 #Creates the "master" packages file
+#FIXME TODO: cache package MD5s if possible, and theen use the MD5s. 
 sub create_packages_file {
   my $repo=shift;
   foreach my $distro (@{$repo->{distro}}){
