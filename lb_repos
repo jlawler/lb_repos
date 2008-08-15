@@ -12,7 +12,7 @@ use File::Temp qw/ tempfile unlink0 /;
 
 
 #DEFINE ALL THE CONSTANT/INITIALIZE DATA STRUCTURES
-
+my $command_name=get_command_name();
 my @config_file_search_path=qw!/etc/lb_repos.yaml!;
 my $RSYNC = "/usr/bin/rsync";
 my $RSYNC_OPTIONS = "--progress";
@@ -66,6 +66,7 @@ my %field_case;
 
 #ACTUAL CODE STARTS HERE!  WOOHOO!
 # int main(...)  (ie, top level command starts here)
+die "do not run this as root\n" if $>==0; 
 my $config_file='';
 foreach(@config_file_search_path){
   $config_file=$_ if -e $_ && !$config_file;
@@ -75,7 +76,6 @@ GetOptions('config=s'=>\$config_file);
 die "Couldn't find a valid config file!" unless $config_file;
 die "cannot open config file $config_file\n" unless -e $config_file;
 
-my $command_name=get_command_name();
 #End top level command
 
 sub create_release_signature;
@@ -552,6 +552,7 @@ sub get_list_of_dependencies {
 sub sync_mirror_lists {
   foreach my $repo_name (keys %{$config->{repositories}}) {
     my $repo=$config->{repositories}->{$repo_name};
+    #foreach_dsa
     foreach my $distro (@{$repo->{distro}}) {
       foreach my $section (@{$distro->{sections}}) {
         foreach my $arch (@{$distro->{arch}}) {
