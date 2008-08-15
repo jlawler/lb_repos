@@ -166,8 +166,8 @@ sub create_release_signature {
     system "rm dists/$distro_name/Release.gpg";
     system("gpg --quiet --no-permission-warning --home $keyring --sign -ba -o dists/$distro_name/Release.gpg dists/$distro_name/Release");
     foreach my $ext('','.gpg'){
-      system("chgrp ".$config->{group_owner}." dists/$distro_name/Release".$ext." 2>/dev/null") if $config->{group_owner} && ($>==0 || $>==uid("dists/$distro_name/Release".$ext));
-      system("chmod 775 dists/$distro_name/Release".$ext) if ($>==0 || $>==uid("dists/$distro_name/Release".$ext));
+      system("chgrp ".$config->{group_owner}." dists/$distro_name/Release".$ext." 2>/dev/null") if $config->{group_owner} && ($>==0 || $>==uid("dists/$distro_name/Release"));
+      system("chmod 775 dists/$distro_name/Release".$ext) if ($>==0 || $>==uid("dists/$distro_name/Release"));
     }
     }
   }
