@@ -205,11 +205,46 @@ sub gid {
   return $temp[5];
 }
 
+#read the cached version of the sha1/md5 checksums.
+sub read_cache {
+  my ($distro,$repo_cache) = @_;
+  $distro->{cache}={};
+  my $repo_fh;
+  return unless -e $repo_cache;
+  open $repo_fh,$repo_cache || return;
+  while(my $cache_line=<$repo_fh>){
+    my ($file,$md5,$sha1,$sha256)=split(',',$cache_line);
+    $distro->{cache}->{$file}={}; 
+    $distro->{cache}->{$file}->{MD5sum}=$md5; 
+    $distro->{cache}->{$file}->{SHA1sum}=$sha1; 
+    $distro->{cache}->{$file}->{SHA256sum}=$sha256; 
+  }  
+  close $repo_fh;
+  print STDERR Dumper $distro->{cache};
+}
+
+#write the cached version of the sha1/md5 checksums.
+sub write_cache {
+  my ($distro, $repo_cache )= @_;
+  my $cache=$distro->{cache};
+  my $repo_fh;
+  open $repo_fh,">$repo_cache" || warn "Cannot update cache for ".$distro->{name}."\n";
+  foreach my $arch (keys %{$distro->{cache}}){
+    foreach my $package_name (keys %{$distro->{cache}->{$arch}}){
+      my $package=$distro->{cache}->{$arch}->{$package_name};
+      print $repo_fh join(',',($package->{Filename},$package->{MD5sum},$package->{SHA1sum},$package->{SHA256sum}))."\n";
+    }
+  }
+  close $repo_fh;
+}
+
+
 #Creates the "master" packages file
 #FIXME TODO: cache package MD5s if possible, and theen use the MD5s. 
 sub create_packages_file {
   my $repo=shift;
   foreach my $distro (@{$repo->{distro}}){
+    my $distro_cache=read_cache($distro,$repo->{path}."/.cache_".$distro->{name});
     my %files;
     foreach(@{$distro->{arch}}){
       $files{$_}={};
@@ -240,6 +275,12 @@ sub create_packages_file {
         $tv{'Filename'}="/pool-$distroname/$section/$ent";
         `md5sum $full_ent`=~/([\da-f]{32})/o;
         $tv{'MD5sum'}=$1;
+        `sha1sum $full_ent`=~/([\da-f]{40})/o;
+        $tv{'SHA1sum'}=$1;
+        `sha256sum $full_ent`=~/([\da-f]{64})/o;
+        $tv{'SHA256sum'}=$1;
+
+
       	my @stat= stat($full_ent) or die sprintf("Couldn't stat %s: %s", $full_ent, $!)."\n";
       	open(C,"md5sum <$full_ent |") || die "$full_ent $!";
       	chop($_=<C>); close(C); $? and die sprintf("\`md5sum < %s' exited with %d", $full_ent, $?)."\n";
@@ -283,6 +324,8 @@ sub create_packages_file {
         close PACKAGES;
       }
     }
+    $distro->{cache}=\%files;
+    write_cache($distro,$repo->{path}."/.cache_".$distro->{name});
   }
 }
 
