@@ -99,6 +99,9 @@ $command="" unless $command;
 #Also, add a way to rebuild partial repos
 if($command=~/^(re)?build/){
   rebuild_repository($add_to);
+}elsif($command=~/^verify/){
+  verify();
+
 }elsif($command=~/^what/){
   if($add_to and $add_to=~/repos(itories)?/){
     what_repository();
@@ -159,6 +162,26 @@ sub what_distro {
   }
   print "\n";
 
+}
+sub verify {
+  foreach my $repo_name(keys %{$config->{repositories}}){
+    my $repo=$config->{repositories}->{$repo_name};
+    foreach my $distro(@{$config->{repositories}->{$repo_name}->{distro}}){
+      foreach my $arch(@{$distro->{arch}}){
+        foreach my $section(@{$distro->{sections}}){
+          my ($distro_name, $path,$keyring)=($distro->{name},$repo->{path},$repo->{keyring});
+          chdir($path) || die $!;
+          system("gzip -t dists/$$distro{name}/$section/binary-$arch/Packages.gz") && 
+          die "$repo_name dists/$$distro{name}/$section/binary-$arch/Packages.gz FAILS CHECK\n";
+          system("bzip2 -t dists/$$distro{name}/$section/binary-$arch/Packages.bz2") && 
+          die "$repo_name dists/$$distro{name}/$section/binary-$arch/Packages.gz FAILS CHECK\n";
+
+          die "No release file found for $repo_name\n" unless -e "dists/$distro_name/Release";
+          die "Release file not signed for  $repo_name\n" unless -e "dists/$distro_name/Release.gpg";
+        }
+      }
+    }
+  }
 }
 
 sub create_dirs {
