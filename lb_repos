@@ -220,7 +220,6 @@ sub read_cache {
     $distro->{cache}->{$file}->{SHA256sum}=$sha256; 
   }  
   close $repo_fh;
-  print STDERR Dumper $distro->{cache};
 }
 
 #write the cached version of the sha1/md5 checksums.
@@ -273,14 +272,19 @@ sub create_packages_file {
     	    $tv{$key}= $value;
     	  }
         $tv{'Filename'}="/pool-$distroname/$section/$ent";
-        `md5sum $full_ent`=~/([\da-f]{32})/o;
-        $tv{'MD5sum'}=$1;
-        `sha1sum $full_ent`=~/([\da-f]{40})/o;
-        $tv{'SHA1sum'}=$1;
-        `sha256sum $full_ent`=~/([\da-f]{64})/o;
-        $tv{'SHA256sum'}=$1;
-
-
+        if($distro->{cache}->{$tv{'Filename'}}){
+          #print STDERR "USING CACHE FOR $tv{'Filename'}\n";
+          foreach(qw/MD5sum SHA1sum SHA256sum/){
+            $tv{$_}=$distro->{cache}->{$tv{'Filename'}}->{$_};
+          }
+        }else{
+          `md5sum $full_ent`=~/([\da-f]{32})/o;
+          $tv{'MD5sum'}=$1;
+          `sha1sum $full_ent`=~/([\da-f]{40})/o;
+          $tv{'SHA1sum'}=$1;
+          `sha256sum $full_ent`=~/([\da-f]{64})/o;
+          $tv{'SHA256sum'}=$1;
+        }
       	my @stat= stat($full_ent) or die sprintf("Couldn't stat %s: %s", $full_ent, $!)."\n";
       	open(C,"md5sum <$full_ent |") || die "$full_ent $!";
       	chop($_=<C>); close(C); $? and die sprintf("\`md5sum < %s' exited with %d", $full_ent, $?)."\n";
@@ -305,6 +309,10 @@ sub create_packages_file {
           for my $key (@fieldpri) {
             next unless defined $$package{$key};
             $record .= "$key: $$package{$key}\n";
+          }
+          if(scalar(grep(/sha1/, $distro->{arch}))==0){
+              my $key="SHA1sum";
+              $record .= "$key: $$package{$key}\n";
           }
           $record .= "\n";
           print PACKAGES $record; 
