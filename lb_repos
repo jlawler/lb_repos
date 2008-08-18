@@ -520,7 +520,7 @@ sub sync_packages {
 					
 					my @files = ();
 					my @packages = @{$distro->{base_packages}};
-					if ($distro->{include_essential}) {
+					if ($distro->{include_essential} eq "true") {
 						push (@packages, get_essentials(\%package_hash));
 					}
 
@@ -534,14 +534,8 @@ sub sync_packages {
 					my $remote_url = "$distro->{mirror_url}/";
 					my $local_dir = "$repo->{path}/pool-$distro->{name}/$section/";
 
-					#rsync protocol
-					if ($remote_url =~ /^rsync/i) {
-						rsync_get($remote_url, $local_dir, \@files)
-					} 
-					#any other protocol handle with curl
-					else {
-						curl_get($remote_url, $local_dir, \@files)
-					}
+					#get the files
+					get($remote_url, $local_dir, \@files);
 				}
       }
     }
@@ -551,8 +545,8 @@ sub sync_packages {
   exit;
 }
 
-
-sub rsync_get {
+# gets a list of files from the specified url and puts them in the local dir
+sub get {
 	my $remote_url = shift;
 	my $local_dir = shift;
 	my $files = shift;
@@ -561,7 +555,14 @@ sub rsync_get {
 	my ($fh, $filename) = tempfile() or die("Can't create temp file");
 	print $fh join("\n",@$files);
 
-	my $cmd = "$RSYNC $RSYNC_OPTIONS --no-R --files-from=$filename $remote_url $local_dir";
+	my $cmd;
+	if ($remote_url =~ /^rsync/i) {
+		$cmd = "$RSYNC $RSYNC_OPTIONS --no-R --files-from=$filename $remote_url $local_dir";
+	}
+	else {
+	  $cmd = "wget -N -B $remote_url -i $filename -P $local_dir";
+	}
+
 	system("$cmd");
 
 	unlink0($fh, $filename) or print "Error unlinking file $filename safely";	
@@ -569,10 +570,7 @@ sub rsync_get {
 
 }
 
-sub curl_get {
-
-}
-
+# get a list of esential packages
 sub get_essentials {
 	my $package_hash = shift;
 	my @packages;
@@ -584,6 +582,12 @@ sub get_essentials {
 	return @packages;
 }
 
+# Gets a list of files to be downloaded for the given package
+# Args:
+#		$package - the package to download
+#		$resolve_deps - "true" if dependencies are to be resolved
+#		$package_hash - a reference to the hash that holds packages and 
+#		                associated files.
 sub get_list_of_files {
   my $package = shift; 
 	my $resolve_deps = shift;
@@ -600,13 +604,24 @@ sub get_list_of_files {
     ($package, $version) = split(" ", $package, 2);
     chomp $package;
 
+		#expand stars
+		if ($package =~ /\*.*$/) {
+			$package =~ s/\*.*$//;
+			foreach my $key (keys %$package_hash) {
+				if ($key =~ /^$package.*$/) {
+					unshift(@required, $key);		
+				}
+			}
+			next;
+		}
+
     if ($files{$package}) {
       next;
     }
 
     if ($package_hash->{$package}){
       $files{$package} = $package_hash->{$package}->{"Filename"};
-			if ($resolve_deps) {
+			if ($resolve_deps eq "true") {
 				if ($package_hash->{$package}->{"Depends"}) {
 					unshift(@required, split(',', $package_hash->{$package}->{"Depends"}));
 				}
@@ -630,14 +645,14 @@ sub sync_mirror_lists {
       foreach my $section (@{$distro->{sections}}) {
         foreach my $arch (@{$distro->{arch}}) {
           #build url and directory names
-          my $remote_url = "$distro->{mirror_url}/dists/$distro->{name}/$section/binary-$arch/Packages.gz";
+          my $remote_url = "$distro->{mirror_url}/dists/$distro->{name}/$section/binary-$arch/";
           my $local_dir = "$distro->{mirror_cache}/$distro->{name}/$section/binary-$arch";
-          my $rsync_cmd = "$RSYNC $RSYNC_OPTIONS $remote_url $local_dir";
           unless ( -e "$local_dir"  ) {
             mkpath( "$local_dir" );
           }	 
           #sync the Package list
-          system($rsync_cmd);
+					@files = ("Packages.gz");
+          get ($remote_url, $local_dir, \@files);
         }
       }
     }

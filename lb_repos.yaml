@@ -10,11 +10,11 @@ repositories:
      sections: [main]
      arch: [i386, amd64]
      hashes: [md5]
-     mirror_url: "rsync://http.us.debian.org/debian"
+     mirror_url: "http://http.us.debian.org/debian"
      mirror_cache: "/home/jbryan/repos/repo/debian/cache"
-     base_packages: [base-files, coreutils, base-passwd, awk]
-     resolve_deps: no
-     include_essential: yes
+     base_packages: [vim*]
+     resolve_deps: false
+     include_essential: false
  ubuntu.cashnetusa.com:
   path: /home/jbryan/repos/repo/ubuntu/www
   keyring:  /home/jbryan/repos/var/www/keyring
@@ -24,9 +24,9 @@ repositories:
      version : 6.06
      sections: [main]
      arch: [i386, amd64]
-     mirror_url: "rsync://us.archive.ubuntu.com/ubuntu"
+     mirror_url: "http://us.archive.ubuntu.com/ubuntu"
      mirror_cache: /home/jbryan/repos/repo/ubuntu/cache
-     base_packages: [ubuntu-minimal]
-     resolve_deps: yes
-     include_essential: yes
+     base_packages: [vim*]
+     resolve_deps: false
+     include_essential: false
 
