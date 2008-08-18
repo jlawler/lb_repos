@@ -16,8 +16,9 @@ my $command_name=get_command_name();
 
 my @config_file_search_path=("/etc/lb_repos.yaml","/etc/$command_name.yaml");
 my $RSYNC = "/usr/bin/rsync";
-my $RSYNC_OPTIONS = "--progress";
+my $RSYNC_OPTIONS = "";
 my $WGET = "/usr/bin/wget";
+my $WGET_OPTIONS = "-q";
 
 my %kmap= (
   optional         => 'suggests',
@@ -612,37 +613,41 @@ sub sync_packages {
 
 				#build a list of packages available to this distro
         foreach my $section (@{$distro->{sections}}) {
-					#clear the list
-					%package_hash = ();
-          #build url and directory names
-          my $package_file = "$distro->{mirror_cache}/$distro->{name}/$section/binary-$arch/Packages.gz";
-          print "Reading $package_file ...\n";
-          load_package_list($package_file, \%package_hash);
-					
-					my %files_md5 = ();
-					my @packages = @{$distro->{base_packages}};
-					if ($distro->{include_essential} eq "true") {
-						push (@packages, get_essentials(\%package_hash));
-					}
+					foreach my $mirror (@{$distro->{mirrors}}) {
+						#clear the list
+						%package_hash = ();
+						#build url and directory names
+						my $package_file = "$mirror->{cache}/$distro->{name}/$section/binary-$arch/Packages.gz";
+						print "Reading $package_file ...\n";
+						load_package_list($package_file, \%package_hash);
+						
+						my %files_md5 = ();
+						my @packages = @{$mirror->{packages}};
 
-					foreach my $package (@packages) {
-						%files_md5 = ( %files_md5, get_list_of_files($package, $distro->{resolve_deps}, \%package_hash));
-					}
+						if (exists $mirror->{include_essential} && 
+								$mirror->{include_essential} eq "true") {
+							push (@packages, get_essentials(\%package_hash));
+						}
 
-					my $remote_url = "$distro->{mirror_url}/";
-					my $local_dir = "$repo->{path}/pool-$distro->{name}/$section/";
+						foreach my $package (@packages) {
+							%files_md5 = ( %files_md5, get_list_of_files($package, $mirror->{resolve_deps}, \%package_hash));
+						}
 
-					#get the files
-					my @filenames = keys %files_md5;
-					fetch_files($remote_url, $local_dir, \@filenames);
-					
-					#verify the md5's of the files downloaded
-					print "Verifying MD5's\n";
-					while (my ($file, $md5) = each(%files_md5)) {
-						#strip directories
-						$file =~ s/([^\/]*\/)*//;
-						if (`md5sum $local_dir/$file` !~ /^$md5/i) {
-							die("Bad MD5 for $file\n");
+						my $remote_url = "$mirror->{url}/";
+						my $local_dir = "$repo->{path}/pool-$distro->{name}/$section/";
+
+						#get the files
+						my @filenames = keys %files_md5;
+						fetch_files($remote_url, $local_dir, \@filenames);
+						
+						#verify the md5's of the files downloaded
+						print "Verifying MD5's\n";
+						while (my ($file, $md5) = each(%files_md5)) {
+							#strip directories
+							$file =~ s/([^\/]*\/)*//;
+							if (`md5sum $local_dir/$file` !~ /^$md5/i) {
+								die("Bad MD5 for $file\n");
+							}
 						}
 					}
 				}
@@ -669,7 +674,7 @@ sub fetch_files {
 		$cmd = "$RSYNC $RSYNC_OPTIONS --no-R --files-from=$filename $remote_url $local_dir";
 	}
 	else {
-	  $cmd = "wget -N -B $remote_url -i $filename -P $local_dir";
+	  $cmd = "$WGET $WGET_OPTIONS -N -B $remote_url -i $filename -P $local_dir";
 	}
 
 	system("$cmd");
@@ -755,15 +760,17 @@ sub sync_mirror_lists {
     foreach my $distro (@{$repo->{distro}}) {
       foreach my $section (@{$distro->{sections}}) {
         foreach my $arch (@{$distro->{arch}}) {
-          #build url and directory names
-          my $remote_url = "$distro->{mirror_url}/dists/$distro->{name}/$section/binary-$arch/";
-          my $local_dir = "$distro->{mirror_cache}/$distro->{name}/$section/binary-$arch";
-          unless ( -e "$local_dir"  ) {
-            mkpath( "$local_dir" );
-          }	 
-          #sync the Package list
-					@files = ("Packages.gz");
-          fetch_files($remote_url, $local_dir, \@files);
+					foreach my $mirror (@{$distro->{mirrors}}) {
+						#build url and directory names
+						my $remote_url = "$mirror->{url}/dists/$distro->{name}/$section/binary-$arch/";
+						my $local_dir = "$mirror->{cache}/$distro->{name}/$section/binary-$arch";
+						unless ( -e "$local_dir"  ) {
+							mkpath( "$local_dir" );
+						}	 
+						#sync the Package list
+						@files = ("Packages.gz");
+						fetch_files($remote_url, $local_dir, \@files);
+					}
         }
       }
     }
