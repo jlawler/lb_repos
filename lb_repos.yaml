@@ -1,8 +1,9 @@
 group_owner: packages
 repositories:
  debian.cashnetusa.com:
-  path: /home/jbryan/repos/repo/debian/www
-  keyring:  /home/jbryan/repos/var/www/keyring
+  alias: debian
+  path: /home/jlawler/repos/repo/debian/www
+  keyring:  /home/jlawler/repos/var/www/keyring
   distro:
    - name : etch
      version : 4.0
@@ -16,8 +17,9 @@ repositories:
      resolve_deps: false
      include_essential: false
  ubuntu.cashnetusa.com:
-  path: /home/jbryan/repos/repo/ubuntu/www
-  keyring:  /home/jbryan/repos/var/www/keyring
+  alias: ubuntu
+  path: /home/jlawler/repos/repo/ubuntu/www
+  keyring:  /home/jlawler/repos/var/www/keyring
   distro:
    - hashes: [md5, sha1]
      name: dapper

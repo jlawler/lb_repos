@@ -72,7 +72,7 @@ my %field_case;
 
 #ACTUAL CODE STARTS HERE!  WOOHOO!
 # int main(...)  (ie, top level command starts here)
-die "do not run this as root\n" if $>==0; 
+die "Do not run this as root!\n" if $>==0; 
 my $config_file='';
 foreach(@config_file_search_path){
   $config_file=$_ if -e $_ && !$config_file;
@@ -100,6 +100,9 @@ $command="" unless $command;
 #Also, add a way to rebuild partial repos
 if($command=~/^(re)?build/){
   rebuild_repository($add_to);
+}elsif($command=~/^verify/){
+  verify();
+
 }elsif($command=~/^what/){
   if($add_to and $add_to=~/repos(itories)?/){
     what_repository();
@@ -160,6 +163,26 @@ sub what_distro {
   }
   print "\n";
 
+}
+sub verify {
+  foreach my $repo_name(keys %{$config->{repositories}}){
+    my $repo=$config->{repositories}->{$repo_name};
+    foreach my $distro(@{$config->{repositories}->{$repo_name}->{distro}}){
+      foreach my $arch(@{$distro->{arch}}){
+        foreach my $section(@{$distro->{sections}}){
+          my ($distro_name, $path,$keyring)=($distro->{name},$repo->{path},$repo->{keyring});
+          chdir($path) || die $!;
+          system("gzip -t dists/$$distro{name}/$section/binary-$arch/Packages.gz") && 
+          die "$repo_name dists/$$distro{name}/$section/binary-$arch/Packages.gz FAILS CHECK\n";
+          system("bzip2 -t dists/$$distro{name}/$section/binary-$arch/Packages.bz2") && 
+          die "$repo_name dists/$$distro{name}/$section/binary-$arch/Packages.gz FAILS CHECK\n";
+
+          die "No release file found for $repo_name\n" unless -e "dists/$distro_name/Release";
+          die "Release file not signed for  $repo_name\n" unless -e "dists/$distro_name/Release.gpg";
+        }
+      }
+    }
+  }
 }
 
 sub create_dirs {
@@ -274,6 +297,7 @@ sub write_cache {
       print $repo_fh join(',',($package->{Filename},$package->{MD5sum},$package->{SHA1sum},$package->{SHA256sum}))."\n";
     }
   }
+  system("chgrp -R ".$config->{group_owner}." $repo_cache 2>/dev/null") if $config->{group_owner};
   close $repo_fh;
 }
 
@@ -377,6 +401,7 @@ sub create_packages_file {
   }
 }
 
+#deletes all the cnu_repos cache files.
 sub clear_cache {
   my $distro_name=shift;
   my $killed=0;
