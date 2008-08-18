@@ -53,8 +53,10 @@ my @new_section_paths=qw(
 my $usage="
 $command_name:  Builds and maintains package repositories.
 \tPlease note that you MUST rebuild after you add files!\n
+\tTo list valid distros and repos:  $command_name what
 \tTo add files:  $command_name add DISTRO FILES
-\tTo rebuild the repositories:  $command_name rebuild
+\tTo rebuild the repositories:  $command_name rebuild [repo]
+\tTo reset the checksum cache:  $command_name clear_cache
 \tTo sync packages from a mirror:  $command_name sync_mirror
 \tTo  list files in the repositories:  $command_name list [distro][/section]\n";
 
@@ -97,6 +99,16 @@ $command="" unless $command;
 #Also, add a way to rebuild partial repos
 if($command=~/^(re)?build/){
   rebuild_repository($add_to);
+}elsif($command=~/^what/){
+  if($add_to and $add_to=~/repos(itories)?/){
+    what_repository();
+  }elsif($add_to and $add_to=~/distr(os|ibution)/){
+    what_distro();
+  }else{
+    what_repository();
+    what_distro();
+
+  } 
 }elsif($command=~/^list/){
   list_repository();
 }elsif($command=~/^add/){
@@ -124,7 +136,30 @@ sub list_files {
   print "\n";
 }
 
+#list known repositories
+sub what_repository {
+  print "Repositories:\n";
+  foreach my $repo_name(sort keys %{$config->{repositories}}){
+    print "\t$repo_name\n";
+  }
+  print "\n";
+}
 
+#list known distros
+sub what_distro {
+  print "Distributions:\n";
+  my @dists; 
+  foreach my $repo_name(keys %{$config->{repositories}}){
+    foreach my $distro(@{$config->{repositories}->{$repo_name}->{distro}}){
+      push @dists, $distro->{name};
+    }
+  }
+  foreach(sort @dists){
+    print "\t$_\n";
+  }
+  print "\n";
+
+}
 
 sub create_dirs {
   foreach my $repo_name(keys %{$config->{repositories}}){
@@ -473,8 +508,7 @@ sub rebuild_repository {
   my $rebuilt;
   create_dirs();
   foreach my $repo_name(keys %{$config->{repositories}}){
-    print STDERR "$repo_arg $repo_name\n";
-    unless($repo_arg eq $repo_name){
+    unless(grep /$repo_arg/, ($repo_name,$config->{repositories}->{$repo_name}->{alias})){
       next;
     }
     $rebuilt=1;
