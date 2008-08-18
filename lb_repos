@@ -474,8 +474,7 @@ sub sync_packages {
           my $package_file = "$distro->{mirror_cache}/$distro->{name}/$section/binary-$arch/Packages.gz";
           print "Reading $package_file ...\n";
           load_package_list($package_file, \%package_hash);
-
-
+					
 					my @files = ();
 					my @packages = @{$distro->{base_packages}};
 					if ($distro->{include_essential}) {
@@ -483,23 +482,23 @@ sub sync_packages {
 					}
 
 					foreach my $package (@packages) {
-						push (@files, get_list_of_dependencies($package, \%package_hash));
+						push (@files, get_list_of_files($package, $distro->{resolve_deps}, \%package_hash));
 					}
 					
 					#uniq names
 					@files = keys %{{ map { $_ => 1} @files }};
 
-					#create a temp file to store the list of files that need to be synced
-					my ($fh, $filename) = tempfile() or die("Can't create temp file");
-					print $fh join("\n",@files);
-
 					my $remote_url = "$distro->{mirror_url}/";
 					my $local_dir = "$repo->{path}/pool-$distro->{name}/$section/";
-					my $cmd = "$RSYNC $RSYNC_OPTIONS --no-R --files-from=$filename $remote_url $local_dir";
-					system("$cmd");
 
-					unlink0($fh, $filename) or print "Error unlinking file $filename safely";	
-					$fh->close();
+					#rsync protocol
+					if ($remote_url =~ /^rsync/i) {
+						rsync_get($remote_url, $local_dir, \@files)
+					} 
+					#any other protocol handle with curl
+					else {
+						curl_get($remote_url, $local_dir, \@files)
+					}
 				}
       }
     }
@@ -507,6 +506,28 @@ sub sync_packages {
   
 	print "Don't forget to rebuild the repository!\n";
   exit;
+}
+
+
+sub rsync_get {
+	my $remote_url = shift;
+	my $local_dir = shift;
+	my $files = shift;
+
+	#create a temp file to store the list of files that need to be synced
+	my ($fh, $filename) = tempfile() or die("Can't create temp file");
+	print $fh join("\n",@$files);
+
+	my $cmd = "$RSYNC $RSYNC_OPTIONS --no-R --files-from=$filename $remote_url $local_dir";
+	system("$cmd");
+
+	unlink0($fh, $filename) or print "Error unlinking file $filename safely";	
+	$fh->close();
+
+}
+
+sub curl_get {
+
 }
 
 sub get_essentials {
@@ -520,8 +541,9 @@ sub get_essentials {
 	return @packages;
 }
 
-sub get_list_of_dependencies {
+sub get_list_of_files {
   my $package = shift; 
+	my $resolve_deps = shift;
   my $package_hash = shift;
   my $version;
 
@@ -541,9 +563,11 @@ sub get_list_of_dependencies {
 
     if ($package_hash->{$package}){
       $files{$package} = $package_hash->{$package}->{"Filename"};
-      if ($package_hash->{$package}->{"Depends"}) {
-        unshift(@required, split(',', $package_hash->{$package}->{"Depends"}));
-      }
+			if ($resolve_deps) {
+				if ($package_hash->{$package}->{"Depends"}) {
+					unshift(@required, split(',', $package_hash->{$package}->{"Depends"}));
+				}
+			}
     } 
     else {
       print "Can't resolve $package\n";
