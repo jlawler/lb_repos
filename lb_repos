@@ -35,7 +35,7 @@ my @pkg_res_fields = qw(Package Depends Filename Essential);
 
 my @fieldpri = (qw(Package Source Version Architecture Essential Origin Bugs
   Maintainer Installed-Size), @pkg_dep_fields, 
-  qw(Filename Size MD5sum Section Priority Description));
+  qw(Filename Size Section Priority Description));
 
 
 my @new_dist_paths=qw(
@@ -53,8 +53,10 @@ my @new_section_paths=qw(
 my $usage="
 $command_name:  Builds and maintains package repositories.
 \tPlease note that you MUST rebuild after you add files!\n
+\tTo list valid distros and repos:  $command_name what
 \tTo add files:  $command_name add DISTRO FILES
-\tTo rebuild the repositories:  $command_name rebuild
+\tTo rebuild the repositories:  $command_name rebuild [repo]
+\tTo reset the checksum cache:  $command_name clear_cache
 \tTo sync packages from a mirror:  $command_name sync_mirror
 \tTo  list files in the repositories:  $command_name list [distro][/section]\n";
 
@@ -96,13 +98,25 @@ $command="" unless $command;
 #FIXME TODO Add a way to delete files, and/or delete old versions of files
 #Also, add a way to rebuild partial repos
 if($command=~/^(re)?build/){
-  rebuild_repository();
+  rebuild_repository($add_to);
+}elsif($command=~/^what/){
+  if($add_to and $add_to=~/repos(itories)?/){
+    what_repository();
+  }elsif($add_to and $add_to=~/distr(os|ibution)/){
+    what_distro();
+  }else{
+    what_repository();
+    what_distro();
+
+  } 
 }elsif($command=~/^list/){
   list_repository();
 }elsif($command=~/^add/){
   add_package();
 }elsif($command=~/^sync_mirror/){
   sync_packages();
+}elsif($command=~/^(clear|flush)_cache/){
+  clear_cache($add_to);
 }else{
   die $usage;
 }
@@ -122,7 +136,30 @@ sub list_files {
   print "\n";
 }
 
+#list known repositories
+sub what_repository {
+  print "Repositories:\n";
+  foreach my $repo_name(sort keys %{$config->{repositories}}){
+    print "\t$repo_name\n";
+  }
+  print "\n";
+}
 
+#list known distros
+sub what_distro {
+  print "Distributions:\n";
+  my @dists; 
+  foreach my $repo_name(keys %{$config->{repositories}}){
+    foreach my $distro(@{$config->{repositories}->{$repo_name}->{distro}}){
+      push @dists, $distro->{name};
+    }
+  }
+  foreach(sort @dists){
+    print "\t$_\n";
+  }
+  print "\n";
+
+}
 
 sub create_dirs {
   foreach my $repo_name(keys %{$config->{repositories}}){
@@ -182,6 +219,8 @@ sub create_release_signature {
     my $repo=$config->{repositories}->{$repo_name};
     foreach my $distro (@{$repo->{distro}}){
       my ($distro_name, $path,$keyring)=($distro->{name},$repo->{path},$repo->{keyring});
+      warn "Secret key doesn't appear to exist!\n" and return unless(-e "$$repo{keyring}/secring.gpg");
+      warn "Public key doesn't appear to exist!\n" and return unless(-e "$$repo{keyring}/pubring.gpg");
       chdir($path) || die $!;
       #system "rm dists/$distro_name/Release.gpg dists/$distro_name/Release.gpg 2>/dev/null";
       system "rm dists/$distro_name/Release.gpg";
@@ -220,7 +259,6 @@ sub read_cache {
     $distro->{cache}->{$file}->{SHA256sum}=$sha256; 
   }  
   close $repo_fh;
-  print STDERR Dumper $distro->{cache};
 }
 
 #write the cached version of the sha1/md5 checksums.
@@ -273,14 +311,19 @@ sub create_packages_file {
     	    $tv{$key}= $value;
     	  }
         $tv{'Filename'}="/pool-$distroname/$section/$ent";
-        `md5sum $full_ent`=~/([\da-f]{32})/o;
-        $tv{'MD5sum'}=$1;
-        `sha1sum $full_ent`=~/([\da-f]{40})/o;
-        $tv{'SHA1sum'}=$1;
-        `sha256sum $full_ent`=~/([\da-f]{64})/o;
-        $tv{'SHA256sum'}=$1;
-
-
+        if($distro->{cache}->{$tv{'Filename'}}){
+          #print STDERR "USING CACHE FOR $tv{'Filename'}\n";
+          foreach(qw/MD5sum SHA1sum SHA256sum/){
+            $tv{$_}=$distro->{cache}->{$tv{'Filename'}}->{$_};
+          }
+        }else{
+          `md5sum $full_ent`=~/([\da-f]{32})/o;
+          $tv{'MD5sum'}=$1;
+          `sha1sum $full_ent`=~/([\da-f]{40})/o;
+          $tv{'SHA1sum'}=$1;
+          `sha256sum $full_ent`=~/([\da-f]{64})/o;
+          $tv{'SHA256sum'}=$1;
+        }
       	my @stat= stat($full_ent) or die sprintf("Couldn't stat %s: %s", $full_ent, $!)."\n";
       	open(C,"md5sum <$full_ent |") || die "$full_ent $!";
       	chop($_=<C>); close(C); $? and die sprintf("\`md5sum < %s' exited with %d", $full_ent, $?)."\n";
@@ -306,6 +349,10 @@ sub create_packages_file {
             next unless defined $$package{$key};
             $record .= "$key: $$package{$key}\n";
           }
+          foreach my $hash(@{$distro->{hashes}}){
+              my $key=uc($hash)."sum";
+              $record .= "$key: $$package{$key}\n" if $$package{$key};
+          }
           $record .= "\n";
           print PACKAGES $record; 
         }
@@ -329,6 +376,24 @@ sub create_packages_file {
   }
 }
 
+sub clear_cache {
+  my $distro_name=shift;
+  my $killed=0;
+    foreach my $repo_name(keys %{$config->{repositories}}){
+      my $repo=$config->{repositories}->{$repo_name};
+      foreach my $distro (@{$repo->{distro}}){ 
+        if($distro_name){  
+          if ($distro_name eq $distro->{name}){
+            unlink $repo->{path}."/.cache_".$distro->{name};
+            $killed=1;
+          }
+        }else{
+          unlink $repo->{path}."/.cache_".$distro->{name};
+        }
+      }
+    }
+  warn "unknown distro $distro_name!\n" if $distro_name && !$killed;
+}
 #creates the release_files.  It's a sort of index of indexes, lists the
 #architectures, what OS I have, etc, etc. 
 sub create_release_files {
@@ -439,14 +504,24 @@ sub get_command_name {
 
 #Regenerate the package lists, regenerate
 sub rebuild_repository {
+  my $repo_arg=shift;
+  my $rebuilt;
   create_dirs();
   foreach my $repo_name(keys %{$config->{repositories}}){
+    unless(grep /$repo_arg/, ($repo_name,$config->{repositories}->{$repo_name}->{alias})){
+      next;
+    }
+    $rebuilt=1;
     print "Rebuilding $repo_name\n";
     create_packages_file($config->{repositories}->{$repo_name});
     create_compressed_packages();
     create_release_files($config->{repositories}->{$repo_name},$repo_name);
   }
-  create_release_signature;
+  if($rebuilt){
+    create_release_signature;
+  }else{
+    warn "No repositories found to rebuild\n";
+  }
 }
 
 #list all files in the repos.  Right now, this is all files in the repos, not
