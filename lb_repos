@@ -35,7 +35,7 @@ my @pkg_res_fields = qw(Package Depends Filename Essential);
 
 my @fieldpri = (qw(Package Source Version Architecture Essential Origin Bugs
   Maintainer Installed-Size), @pkg_dep_fields, 
-  qw(Filename Size MD5sum Section Priority Description));
+  qw(Filename Size Section Priority Description));
 
 
 my @new_dist_paths=qw(
@@ -96,13 +96,15 @@ $command="" unless $command;
 #FIXME TODO Add a way to delete files, and/or delete old versions of files
 #Also, add a way to rebuild partial repos
 if($command=~/^(re)?build/){
-  rebuild_repository();
+  rebuild_repository($add_to);
 }elsif($command=~/^list/){
   list_repository();
 }elsif($command=~/^add/){
   add_package();
 }elsif($command=~/^sync_mirror/){
   sync_packages();
+}elsif($command=~/^(clear|flush)_cache/){
+  clear_cache($add_to);
 }else{
   die $usage;
 }
@@ -182,6 +184,8 @@ sub create_release_signature {
     my $repo=$config->{repositories}->{$repo_name};
     foreach my $distro (@{$repo->{distro}}){
       my ($distro_name, $path,$keyring)=($distro->{name},$repo->{path},$repo->{keyring});
+      warn "Secret key doesn't appear to exist!\n" and return unless(-e "$$repo{keyring}/secring.gpg");
+      warn "Public key doesn't appear to exist!\n" and return unless(-e "$$repo{keyring}/pubring.gpg");
       chdir($path) || die $!;
       #system "rm dists/$distro_name/Release.gpg dists/$distro_name/Release.gpg 2>/dev/null";
       system "rm dists/$distro_name/Release.gpg";
@@ -310,9 +314,9 @@ sub create_packages_file {
             next unless defined $$package{$key};
             $record .= "$key: $$package{$key}\n";
           }
-          if(scalar(grep(/sha1/, $distro->{arch}))==0){
-              my $key="SHA1sum";
-              $record .= "$key: $$package{$key}\n";
+          foreach my $hash(@{$distro->{hashes}}){
+              my $key=uc($hash)."sum";
+              $record .= "$key: $$package{$key}\n" if $$package{$key};
           }
           $record .= "\n";
           print PACKAGES $record; 
@@ -337,6 +341,24 @@ sub create_packages_file {
   }
 }
 
+sub clear_cache {
+  my $distro_name=shift;
+  my $killed=0;
+    foreach my $repo_name(keys %{$config->{repositories}}){
+      my $repo=$config->{repositories}->{$repo_name};
+      foreach my $distro (@{$repo->{distro}}){ 
+        if($distro_name){  
+          if ($distro_name eq $distro->{name}){
+            unlink $repo->{path}."/.cache_".$distro->{name};
+            $killed=1;
+          }
+        }else{
+          unlink $repo->{path}."/.cache_".$distro->{name};
+        }
+      }
+    }
+  warn "unknown distro $distro_name!\n" if $distro_name && !$killed;
+}
 #creates the release_files.  It's a sort of index of indexes, lists the
 #architectures, what OS I have, etc, etc. 
 sub create_release_files {
@@ -447,14 +469,25 @@ sub get_command_name {
 
 #Regenerate the package lists, regenerate
 sub rebuild_repository {
+  my $repo_arg=shift;
+  my $rebuilt;
   create_dirs();
   foreach my $repo_name(keys %{$config->{repositories}}){
+    print STDERR "$repo_arg $repo_name\n";
+    unless($repo_arg eq $repo_name){
+      next;
+    }
+    $rebuilt=1;
     print "Rebuilding $repo_name\n";
     create_packages_file($config->{repositories}->{$repo_name});
     create_compressed_packages();
     create_release_files($config->{repositories}->{$repo_name},$repo_name);
   }
-  create_release_signature;
+  if($rebuilt){
+    create_release_signature;
+  }else{
+    warn "No repositories found to rebuild\n";
+  }
 }
 
 #list all files in the repos.  Right now, this is all files in the repos, not
