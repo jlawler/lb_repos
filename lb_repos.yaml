@@ -1,6 +1,7 @@
 group_owner: packages
 repositories:
  debian.cashnetusa.com:
+  alias: debian
   path: /home/jlawler/repos/repo/debian/www
   keyring:  /home/jlawler/repos/var/www/keyring
   distro:
@@ -15,6 +16,7 @@ repositories:
      base_packages: [base-files, coreutils, base-passwd, awk]
      include_essential: yes
  ubuntu.cashnetusa.com:
+  alias: ubuntu
   path: /home/jlawler/repos/repo/ubuntu/www
   keyring:  /home/jlawler/repos/var/www/keyring
   distro:

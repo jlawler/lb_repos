@@ -71,7 +71,7 @@ my %field_case;
 
 #ACTUAL CODE STARTS HERE!  WOOHOO!
 # int main(...)  (ie, top level command starts here)
-die "do not run this as root\n" if $>==0; 
+die "Do not run this as root!\n" if $>==0; 
 my $config_file='';
 foreach(@config_file_search_path){
   $config_file=$_ if -e $_ && !$config_file;
@@ -273,6 +273,7 @@ sub write_cache {
       print $repo_fh join(',',($package->{Filename},$package->{MD5sum},$package->{SHA1sum},$package->{SHA256sum}))."\n";
     }
   }
+  system("chgrp -R ".$config->{group_owner}." $repo_cache 2>/dev/null") if $config->{group_owner};
   close $repo_fh;
 }
 
@@ -376,6 +377,7 @@ sub create_packages_file {
   }
 }
 
+#deletes all the cnu_repos cache files.
 sub clear_cache {
   my $distro_name=shift;
   my $killed=0;
