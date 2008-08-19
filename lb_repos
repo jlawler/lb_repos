@@ -58,6 +58,7 @@ $command_name:  Builds and maintains package repositories.
 \tTo list valid distros and repos:  $command_name what
 \tTo add files:  $command_name add DISTRO FILES
 \tTo rebuild the repositories:  $command_name rebuild [repo]
+\tTo test the repo:  $command_name verify
 \tTo reset the checksum cache:  $command_name clear_cache
 \tTo sync packages from a mirror:  $command_name sync_mirror
 \tTo  list files in the repositories:  $command_name list [distro][/section]\n";
