@@ -535,8 +535,10 @@ sub rebuild_repository {
   my $rebuilt;
   create_dirs();
   foreach my $repo_name(keys %{$config->{repositories}}){
+    if($repo_arg){
     unless(grep /$repo_arg/, ($repo_name,$config->{repositories}->{$repo_name}->{alias})){
       next;
+    }
     }
     $rebuilt=1;
     print "Rebuilding $repo_name\n";
