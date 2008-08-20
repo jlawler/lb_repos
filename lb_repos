@@ -61,6 +61,7 @@ $command_name:  Builds and maintains package repositories.
 \tTo list valid distros and repos:  $command_name what
 \tTo add files:  $command_name add DISTRO FILES
 \tTo rebuild the repositories:  $command_name rebuild [repo]
+\tTo rebuild the cache only:  $command_name recache [repo]
 \tTo test the repo:  $command_name verify
 \tTo reset the checksum cache:  $command_name clear_cache
 \tTo sync packages from a mirror:  $command_name sync_mirror
@@ -104,6 +105,8 @@ $command="" unless $command;
 #FIXME TODO Add a way to delete files, and/or delete old versions of files
 if($command=~/^(re)?build/){
   rebuild_repository($add_to);
+}elsif($command=~/^recache/){
+  rebuild_repository($add_to,1);
 }elsif($command=~/^verify/){
   verify();
 
@@ -331,7 +334,7 @@ sub write_cache {
 
 #Creates the "master" packages file
 sub create_packages_file {
-  my $repo=shift;
+  my ($repo, $cache_only)=@_;
   foreach my $distro (@{$repo->{distro}}){
     my $distro_cache=read_cache($distro,$repo->{path}."/.cache_".$distro->{name});
     my %files;
@@ -390,6 +393,8 @@ sub create_packages_file {
         my $name=$tv{Package}.$tv{Version};
         $files{$tv{Architecture}}->{$name}=\%tv;
       }
+
+      unless($cache_only){
 #      print STDERR "LOAD DONE\n";
       foreach my $arch (@{$distro->{arch}}){
         my $distro_name=$distro->{name};
@@ -416,6 +421,7 @@ sub create_packages_file {
         open(PACKAGES, ">$packages_name") || die "couldnt open $packages_name $!";
         print PACKAGES $record; 
         close PACKAGES;
+      }
       }
     }
     $distro->{cache}=\%files;
@@ -553,6 +559,7 @@ sub get_command_name {
 #Regenerate the package lists, regenerate
 sub rebuild_repository {
   my $repo_arg=shift;
+  my $cache_only=shift;
   my $rebuilt;
   create_dirs();
   foreach my $repo_name(keys %{$config->{repositories}}){
@@ -563,7 +570,8 @@ sub rebuild_repository {
     }
     $rebuilt=1;
     print "Rebuilding $repo_name\n";
-    create_packages_file($config->{repositories}->{$repo_name});
+    create_packages_file($config->{repositories}->{$repo_name},$cache_only);
+    return if $cache_only;
     create_compressed_packages();
     create_release_files($config->{repositories}->{$repo_name},$repo_name);
   }
