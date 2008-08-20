@@ -30,6 +30,7 @@ my %kmap= (
   package_revision => 'revision',
 );
 
+my $GPG_FLAGS="--quiet --no-permission-warning ";
 my @pkg_dep_fields = qw(Replaces Provides Depends Pre-Depends 
   Recommends Suggests Conflicts Enhances Breaks);
 
@@ -112,7 +113,7 @@ sub export_keys {
         warn "Keyring doesn't exist! ($$repo{keyring}/secring.gpg)";
         next;
       }
-      system "GNUPGHOME=$$repo{keyring} gpg --export --armour ";
+      system "GNUPGHOME=$$repo{keyring} gpg $GPG_FLAGS --export --armour ";
 #      print STDERR "CREATING KEYS FOR ".Dumper($config->{repositories}->{$repo_name})."\n";
     }
   }
@@ -128,7 +129,7 @@ sub create_keys {
         warn "Keyring already exists! ($$repo{keyring}/secring.gpg)";
         next;
       }
-      system "GNUPGHOME=$$repo{keyring} gpg --gen-key";
+      system "GNUPGHOME=$$repo{keyring} gpg $GPG_FLAGS --gen-key";
 #      print STDERR "CREATING KEYS FOR ".Dumper($config->{repositories}->{$repo_name})."\n";
     }
   }
@@ -292,7 +293,7 @@ sub create_release_signature {
       chdir($path) || die $!;
       #system "rm dists/$distro_name/Release.gpg dists/$distro_name/Release.gpg 2>/dev/null";
       system "rm dists/$distro_name/Release.gpg";
-      system("gpg --quiet --no-permission-warning --home $keyring --sign -ba -o dists/$distro_name/Release.gpg dists/$distro_name/Release");
+      system("gpg $GPG_FLAGS --home $keyring --sign -ba -o dists/$distro_name/Release.gpg dists/$distro_name/Release");
       foreach my $ext('','.gpg'){
         system("chgrp ".$config->{group_owner}." dists/$distro_name/Release".$ext." 2>/dev/null") if $config->{group_owner} && ($>==0 || $>==uid("dists/$distro_name/Release"));
         system("chmod 775 dists/$distro_name/Release".$ext) if ($>==0 || $>==uid("dists/$distro_name/Release"));
