@@ -64,6 +64,7 @@ $command_name:  Builds and maintains package repositories.
 \tTo rebuild the cache only:  $command_name recache [repo]
 \tTo test the repo:  $command_name verify
 \tTo reset the checksum cache:  $command_name clear_cache
+\tTo create keys for a repository:  $command_name create_key [repo] 
 \tTo sync packages from a mirror:  $command_name sync_mirror
 \tTo  list files in the repositories:  $command_name list [distro][/section]\n";
 
@@ -101,10 +102,45 @@ my ($command, $add_to, @files)=grep(!/^--/,@ARGV);
 my $config=read_config($config_file);
 
 $command="" unless $command;
+sub export_keys {
+  my $target_repo=shift;
+  foreach my $repo_name(sort keys %{$config->{repositories}}){
+    my $repo=$config->{repositories}->{$repo_name};
+    my $alias=$repo->{alias};
+    if(!$target_repo or $target_repo eq $repo_name or $target_repo eq $alias){
+      unless(-e "$$repo{keyring}/secring.gpg"){
+        warn "Keyring doesn't exist! ($$repo{keyring}/secring.gpg)";
+        next;
+      }
+      system "GNUPGHOME=$$repo{keyring} gpg --export --armour ";
+#      print STDERR "CREATING KEYS FOR ".Dumper($config->{repositories}->{$repo_name})."\n";
+    }
+  }
+}
+
+sub create_keys {
+  my $target_repo=shift;
+  foreach my $repo_name(sort keys %{$config->{repositories}}){
+    my $repo=$config->{repositories}->{$repo_name};
+    my $alias=$repo->{alias};
+    if(!$target_repo or $target_repo eq $repo_name or $target_repo eq $alias){
+      if(-e "$$repo{keyring}/secring.gpg"){
+        warn "Keyring already exists! ($$repo{keyring}/secring.gpg)";
+        next;
+      }
+      system "GNUPGHOME=$$repo{keyring} gpg --gen-key";
+#      print STDERR "CREATING KEYS FOR ".Dumper($config->{repositories}->{$repo_name})."\n";
+    }
+  }
+}
 
 #FIXME TODO Add a way to delete files, and/or delete old versions of files
 if($command=~/^(re)?build/){
   rebuild_repository($add_to);
+}elsif($command=~/^create_keys?$/){
+  create_keys($add_to);
+}elsif($command=~/^export_keys?$/){
+  export_keys($add_to);
 }elsif($command=~/^recache/){
   rebuild_repository($add_to,1);
 }elsif($command=~/^verify/){
