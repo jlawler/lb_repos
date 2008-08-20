@@ -287,18 +287,20 @@ sub read_cache {
   
   while(my $cache_line=<$repo_fh>){
     chomp $cache_line;
-    my (@hashes)=split('^|^',$cache_line);
+    my (@hashes)=split(/\^\|\^/,$cache_line);
     my $file=shift @hashes;
-    print STDERR "$file\n";
-    $distro->{cache}->{$file}={}; 
+    #print STDERR "$file\n";
+    $distro->{cache}->{$file}={'Filename' => $file}; 
     foreach(@hashes){
-      my ($hash, $value)=split('_',$_);
+      /^([^_]+)_(.*)$/ || warn "Cache didn't match!";
+      my ($hash, $value)=($1,$2);
+   #   print STDERR "$hash $value $_\n";
       $value=~s/\\n/\n/g;
-      $distro->{cache}->{$file}->{$hash_case{$hash}}=$value; 
+      $distro->{cache}->{$file}->{$hash}=$value; 
     }  
   }  
   close $repo_fh;
-  die;
+  #die;
 }
 
 #write the cached version of the sha1/md5 checksums.
@@ -312,6 +314,7 @@ sub write_cache {
     foreach my $package_name (keys %{$distro->{cache}->{$arch}}){
       my $package=$distro->{cache}->{$arch}->{$package_name};
       my @out=($package->{Filename});
+#      print STDERR Dumper($package);
       foreach(keys %$package){
         next if $_ eq "Filename";
         my $value=$package->{$_};
@@ -339,20 +342,21 @@ sub create_packages_file {
     foreach my $section (@{$distro->{sections}}){
       opendir DH, "$path/pool-$distroname/$section/" || die "COULDN'T OPEN PATH";
 
-      print STDERR keys %{$distro->{cache}};
+#      print STDERR keys %{$distro->{cache}};
       while (my $ent=readdir(DH)){
         my $full_ent="$path/pool-$distroname/$section/$ent";
         my $filename="/pool-$distroname/$section/$ent";
         next if -d $full_ent;
         my %tv;
-        print STDERR "$filename\n";
+#        print STDERR "$filename\n";
         if($distro->{cache}->{$filename}){
           foreach(keys %{$distro->{cache}->{$filename}}){
             $tv{$_}=$distro->{cache}->{$filename}->{$_};
           }
+          $files{$tv{Architecture}}->{$filename}=\%tv;
           next;
         }
-        print STDERR "PULLING FULL INFO FOR $full_ent\n";
+#        print STDERR "PULLING FULL INFO FOR $full_ent\n";
         my $data=`dpkg -I $full_ent control`;
       	if ($data eq ""){
     	    warn sprintf("Couldn't call dpkg-deb on %s: %s, skipping package", $ent, $!)."\n";
@@ -386,7 +390,7 @@ sub create_packages_file {
         my $name=$tv{Package}.$tv{Version};
         $files{$tv{Architecture}}->{$name}=\%tv;
       }
-      print STDERR "LOAD DONE\n";
+#      print STDERR "LOAD DONE\n";
       foreach my $arch (@{$distro->{arch}}){
         my $distro_name=$distro->{name};
         my $packages_name="$path/dists/$distro_name/$section/binary-$arch/Packages";
