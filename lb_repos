@@ -143,10 +143,10 @@ if($command=~/^(re)?build/){
 }elsif($command=~/^export_keys?$/){
   export_keys($add_to);
 }elsif($command=~/^recache/){
+  $add_to='' unless $add_to;
   rebuild_repository($add_to,1);
 }elsif($command=~/^verify/){
   verify();
-
 }elsif($command=~/^what/){
   if($add_to and $add_to=~/repos(itories)?/){
     what_repository();
@@ -349,6 +349,7 @@ sub write_cache {
   my $cache=$distro->{cache};
   my $repo_fh;
   open $repo_fh,">$repo_cache" || warn "Cannot update cache for ".$distro->{name}."\n";
+#  print STDERR "WRITING CACHE $repo_cache\n";
   print $repo_fh "$cache_version\n";
   foreach my $arch (keys %{$distro->{cache}}){
     foreach my $package_name (keys %{$distro->{cache}->{$arch}}){
@@ -600,17 +601,19 @@ sub rebuild_repository {
   my $rebuilt;
   create_dirs();
   foreach my $repo_name(keys %{$config->{repositories}}){
-    if($repo_arg){
+    if($repo_arg && $repo_arg=~/all/i){
       unless(grep /$repo_arg/, ($repo_name,$config->{repositories}->{$repo_name}->{alias})){
+        print STDERR "IGNORING $repo_name\n";
         next;
       }
     }
     $rebuilt=1;
     print "Rebuilding $repo_name\n";
     create_packages_file($config->{repositories}->{$repo_name},$cache_only);
-    return if $cache_only;
-    create_compressed_packages();
-    create_release_files($config->{repositories}->{$repo_name},$repo_name);
+    unless($cache_only){
+      create_compressed_packages();
+      create_release_files($config->{repositories}->{$repo_name},$repo_name);
+    }
   }
   if($rebuilt){
     create_release_signature;
