@@ -13,13 +13,16 @@ use File::Temp qw/ tempfile unlink0 /;
 
 #DEFINE ALL THE CONSTANT/INITIALIZE DATA STRUCTURES
 my $command_name=get_command_name();
+my %hash_case=('md5' => 'MD5sum', 'sha1' => 'SHA1', 'sha256' => 'SHA256');
+my %hash_commands=('md5' => 'md5sum', 'sha1' => 'sha1sum', 'sha256' => 'sha256sum');
+my %hash_sizes=('md5' => 32, 'sha1' => 40, 'sha256' => 64);
 
 my @config_file_search_path=("/etc/lb_repos.yaml","/etc/$command_name.yaml");
 my $RSYNC = "/usr/bin/rsync";
 my $RSYNC_OPTIONS = "";
 my $WGET = "/usr/bin/wget";
 my $WGET_OPTIONS = "-q";
-
+my $cache_version='1';
 my %kmap= (
   optional         => 'suggests',
   recommended      => 'recommends',
@@ -99,7 +102,6 @@ my $config=read_config($config_file);
 $command="" unless $command;
 
 #FIXME TODO Add a way to delete files, and/or delete old versions of files
-#Also, add a way to rebuild partial repos
 if($command=~/^(re)?build/){
   rebuild_repository($add_to);
 }elsif($command=~/^verify/){
@@ -113,7 +115,6 @@ if($command=~/^(re)?build/){
   }else{
     what_repository();
     what_distro();
-
   } 
 }elsif($command=~/^list/){
   list_repository();
@@ -164,8 +165,9 @@ sub what_distro {
     print "\t$_\n";
   }
   print "\n";
-
 }
+
+#run sanity checks for repo
 sub verify {
   foreach my $repo_name(keys %{$config->{repositories}}){
     my $repo=$config->{repositories}->{$repo_name};
@@ -184,6 +186,7 @@ sub verify {
         }
       }
     }
+    print "$repo passes checks\n";
   }
 }
 
@@ -277,12 +280,19 @@ sub read_cache {
   my $repo_fh;
   return unless -e $repo_cache;
   open $repo_fh,$repo_cache || return;
+  my $version=<$repo_fh>;chomp $version;
+  print STDERR "DIFFERENT CACHE VERSION, IGNORING\n" unless $version eq $cache_version;
+  return unless $version eq $cache_version;
+   
+  
   while(my $cache_line=<$repo_fh>){
-    my ($file,$md5,$sha1,$sha256)=split(',',$cache_line);
+    chomp $cache_line;
+    my ($file,@hashes)=split(',',$cache_line);
     $distro->{cache}->{$file}={}; 
-    $distro->{cache}->{$file}->{MD5sum}=$md5; 
-    $distro->{cache}->{$file}->{SHA1sum}=$sha1; 
-    $distro->{cache}->{$file}->{SHA256sum}=$sha256; 
+    foreach(@hashes){
+      my ($hash, $value)=split('_',$_);
+      $distro->{cache}->{$file}->{$hash_case{$hash}}=$value; 
+    }  
   }  
   close $repo_fh;
 }
@@ -293,10 +303,15 @@ sub write_cache {
   my $cache=$distro->{cache};
   my $repo_fh;
   open $repo_fh,">$repo_cache" || warn "Cannot update cache for ".$distro->{name}."\n";
+  print $repo_fh "$cache_version\n";
   foreach my $arch (keys %{$distro->{cache}}){
     foreach my $package_name (keys %{$distro->{cache}->{$arch}}){
       my $package=$distro->{cache}->{$arch}->{$package_name};
-      print $repo_fh join(',',($package->{Filename},$package->{MD5sum},$package->{SHA1sum},$package->{SHA256sum}))."\n";
+      my @out=($package->{Filename});
+      foreach(keys %hash_commands){
+        push(@out, $_.'_'.$package->{$hash_case{$_}}) if $package->{$hash_case{$_}};
+      }
+      print $repo_fh join(',',@out)."\n";
     }
   }
   system("chgrp -R ".$config->{group_owner}." $repo_cache 2>/dev/null") if $config->{group_owner};
@@ -305,7 +320,6 @@ sub write_cache {
 
 
 #Creates the "master" packages file
-#FIXME TODO: cache package MD5s if possible, and theen use the MD5s. 
 sub create_packages_file {
   my $repo=shift;
   foreach my $distro (@{$repo->{distro}}){
@@ -339,21 +353,19 @@ sub create_packages_file {
     	  }
         $tv{'Filename'}="/pool-$distroname/$section/$ent";
         if($distro->{cache}->{$tv{'Filename'}}){
-          #print STDERR "USING CACHE FOR $tv{'Filename'}\n";
-          foreach(qw/MD5sum SHA1sum SHA256sum/){
+#          print STDERR "USING CACHE FOR $tv{'Filename'}\n";
+          foreach(keys %{$distro->{cache}->{$tv{'Filename'}}}){
             $tv{$_}=$distro->{cache}->{$tv{'Filename'}}->{$_};
           }
-        }else{
-          `md5sum $full_ent`=~/([\da-f]{32})/o;
-          $tv{'MD5sum'}=$1;
-          `sha1sum $full_ent`=~/([\da-f]{40})/o;
-          $tv{'SHA1sum'}=$1;
-          `sha256sum $full_ent`=~/([\da-f]{64})/o;
-          $tv{'SHA256sum'}=$1;
         }
+        foreach(@{$distro->{hashes}}){
+          next if $tv{$hash_case{$_}};
+          my $hash_command=$hash_commands{$_};
+          print STDERR "HASHING $hash_command $full_ent\n";
+          `$hash_command $full_ent`=~/([\da-f]{$hash_sizes{$_}})/o;
+          $tv{$hash_case{$_}}=$1;
+        }            
       	my @stat= stat($full_ent) or die sprintf("Couldn't stat %s: %s", $full_ent, $!)."\n";
-      	open(C,"md5sum <$full_ent |") || die "$full_ent $!";
-      	chop($_=<C>); close(C); $? and die sprintf("\`md5sum < %s' exited with %d", $full_ent, $?)."\n";
       	$tv{'Size'}= $stat[7];
   	
       	if (defined $tv{Revision} and length($tv{Revision})) {
@@ -367,34 +379,26 @@ sub create_packages_file {
         my $distro_name=$distro->{name};
         my $packages_name="$path/dists/$distro_name/$section/binary-$arch/Packages";
         unlink($packages_name);
-        open(PACKAGES, ">$packages_name") || die "couldnt open $packages_name $!";
-        foreach my $p(sort keys %{ $files{$arch}}){
-          my $package=$files{$arch}->{$p};
+        my $record= "";
+        foreach my $p(sort (keys %{ $files{$arch}}, keys %{ $files{'all'}})){
+
+          my $package=$files{$arch}->{$p} || $files{'all'}->{$p};
           my ($distro_name, $path,$keyring)=($distro->{name},$repo->{path},$repo->{keyring});
-          my $record= "";
           for my $key (@fieldpri) {
             next unless defined $$package{$key};
             $record .= "$key: $$package{$key}\n";
           }
           foreach my $hash(@{$distro->{hashes}}){
-              my $key=uc($hash)."sum";
-              $record .= "$key: $$package{$key}\n" if $$package{$key};
+              my $key=$hash_case{$hash};
+              die "No hash value for $hash $p \n" unless $$package{$key};
+#              print STDERR "SHOULD ADD $hash $key $$package{$key}\n";
+              $record .= "$key: $$package{$key}\n";
           }
           $record .= "\n";
-          print PACKAGES $record; 
+
         }
-        my $tarch='all';
-        foreach my $p(sort keys %{ $files{$tarch}}){
-          my $package=$files{$tarch}->{$p};
-          my ($distro_name, $path,$keyring)=($distro->{name},$repo->{path},$repo->{keyring});
-          my $record= "";
-          for my $key (@fieldpri) {
-            next unless defined $$package{$key};
-            $record .= "$key: $$package{$key}\n";
-          }
-          $record .= "\n";
-          print PACKAGES $record; 
-        }
+        open(PACKAGES, ">$packages_name") || die "couldnt open $packages_name $!";
+        print PACKAGES $record; 
         close PACKAGES;
       }
     }
