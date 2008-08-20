@@ -287,14 +287,18 @@ sub read_cache {
   
   while(my $cache_line=<$repo_fh>){
     chomp $cache_line;
-    my ($file,@hashes)=split(',',$cache_line);
+    my (@hashes)=split('^|^',$cache_line);
+    my $file=shift @hashes;
+    print STDERR "$file\n";
     $distro->{cache}->{$file}={}; 
     foreach(@hashes){
       my ($hash, $value)=split('_',$_);
+      $value=~s/\\n/\n/g;
       $distro->{cache}->{$file}->{$hash_case{$hash}}=$value; 
     }  
   }  
   close $repo_fh;
+  die;
 }
 
 #write the cached version of the sha1/md5 checksums.
@@ -308,10 +312,13 @@ sub write_cache {
     foreach my $package_name (keys %{$distro->{cache}->{$arch}}){
       my $package=$distro->{cache}->{$arch}->{$package_name};
       my @out=($package->{Filename});
-      foreach(keys %hash_commands){
-        push(@out, $_.'_'.$package->{$hash_case{$_}}) if $package->{$hash_case{$_}};
+      foreach(keys %$package){
+        next if $_ eq "Filename";
+        my $value=$package->{$_};
+        $value=~s/\n/\\n/g;
+        push(@out, $_.'_'.$value);
       }
-      print $repo_fh join(',',@out)."\n";
+      print $repo_fh join('^|^',@out)."\n";
     }
   }
   system("chgrp -R ".$config->{group_owner}." $repo_cache 2>/dev/null") if $config->{group_owner};
@@ -331,10 +338,21 @@ sub create_packages_file {
     my($path, $distroname)=($repo->{path}, $distro->{name});
     foreach my $section (@{$distro->{sections}}){
       opendir DH, "$path/pool-$distroname/$section/" || die "COULDN'T OPEN PATH";
+
+      print STDERR keys %{$distro->{cache}};
       while (my $ent=readdir(DH)){
         my $full_ent="$path/pool-$distroname/$section/$ent";
+        my $filename="/pool-$distroname/$section/$ent";
         next if -d $full_ent;
         my %tv;
+        print STDERR "$filename\n";
+        if($distro->{cache}->{$filename}){
+          foreach(keys %{$distro->{cache}->{$filename}}){
+            $tv{$_}=$distro->{cache}->{$filename}->{$_};
+          }
+          next;
+        }
+        print STDERR "PULLING FULL INFO FOR $full_ent\n";
         my $data=`dpkg -I $full_ent control`;
       	if ($data eq ""){
     	    warn sprintf("Couldn't call dpkg-deb on %s: %s, skipping package", $ent, $!)."\n";
@@ -351,17 +369,10 @@ sub create_packages_file {
     	    $value =~ s/\s+$//;
     	    $tv{$key}= $value;
     	  }
-        $tv{'Filename'}="/pool-$distroname/$section/$ent";
-        if($distro->{cache}->{$tv{'Filename'}}){
-#          print STDERR "USING CACHE FOR $tv{'Filename'}\n";
-          foreach(keys %{$distro->{cache}->{$tv{'Filename'}}}){
-            $tv{$_}=$distro->{cache}->{$tv{'Filename'}}->{$_};
-          }
-        }
+        $tv{'Filename'}=$filename;
         foreach(@{$distro->{hashes}}){
           next if $tv{$hash_case{$_}};
           my $hash_command=$hash_commands{$_};
-          print STDERR "HASHING $hash_command $full_ent\n";
           `$hash_command $full_ent`=~/([\da-f]{$hash_sizes{$_}})/o;
           $tv{$hash_case{$_}}=$1;
         }            
@@ -375,6 +386,7 @@ sub create_packages_file {
         my $name=$tv{Package}.$tv{Version};
         $files{$tv{Architecture}}->{$name}=\%tv;
       }
+      print STDERR "LOAD DONE\n";
       foreach my $arch (@{$distro->{arch}}){
         my $distro_name=$distro->{name};
         my $packages_name="$path/dists/$distro_name/$section/binary-$arch/Packages";
