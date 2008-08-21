@@ -7,6 +7,6 @@ Standards-Version: 3.7.2
 
 Package: longbranch-repos
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, libyaml-perl, libcompress-zlib-perl, gpg
+Depends: ${shlibs:Depends}, ${misc:Depends}, libyaml-perl, libcompress-zlib-perl, gnupg
 Description: longbranch's debian repository automater 
  this is the longbranch debian repository builder.  It makes is easy to build and maintain debian repositories. 
