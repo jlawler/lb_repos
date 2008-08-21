@@ -374,6 +374,7 @@ sub write_cache {
     }
   }
   system("chgrp -R ".$config->{group_owner}." $repo_cache 2>/dev/null") if $config->{group_owner};
+  system("chmod g+w  $repo_cache 2>/dev/null") if $config->{group_owner};
   close $repo_fh;
 }
 
@@ -623,6 +624,7 @@ sub rebuild_repository {
       create_release_files($config->{repositories}->{$repo_name},$repo_name);
     }
   }
+  return if $cache_only;
   if($rebuilt){
     create_release_signature;
   }else{
