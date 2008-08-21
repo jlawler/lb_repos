@@ -1,3 +1,10 @@
+longbranch-repos (0.4.1) intrepid; urgency=low
+
+  * emergency fix for stupid logic which could result in writing to a closed
+    file handle, and other stupid logic which resulted in truncating a sha1
+
+ -- Jeremy Lawler <jlawler@euler>  Thu, 21 Aug 2008 12:41:30 -0500
+
 longbranch-repos (0.4) intrepid; urgency=low
 
   * Bugfixes, repository caching, lots of performance fixes, handle the gpg
