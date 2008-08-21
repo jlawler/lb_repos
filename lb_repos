@@ -418,7 +418,7 @@ sub create_packages_file {
         foreach(@{$distro->{hashes}}){
           next if $tv{$hash_case{$_}};
           my $hash_command=$hash_commands{$_};
-          `$hash_command $full_ent`=~/([\da-f]{$hash_sizes{$_}})/o;
+          `$hash_command $full_ent`=~/([\da-f]{$hash_sizes{$_}})/;
           $tv{$hash_case{$_}}=$1;
         }            
       	my @stat= stat($full_ent) or die sprintf("Couldn't stat %s: %s", $full_ent, $!)."\n";
