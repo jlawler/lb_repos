@@ -1,3 +1,10 @@
+longbranch-repos (0.4) intrepid; urgency=low
+
+  * Bugfixes, repository caching, lots of performance fixes, handle the gpg
+    stuff, sha256 support. 
+
+ -- Jeremy Lawler <jlawler@euler>  Wed, 20 Aug 2008 19:00:39 -0500
+
 longbranch-repos (0.3) intrepid; urgency=low
 
   * Fixed a ludicrous bug, and bumped the version number again just to be
