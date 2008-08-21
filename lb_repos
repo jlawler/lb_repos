@@ -175,8 +175,11 @@ if($command=~/^(re)?build/){
 sub list_files {
   my ($repo,$distro, $section)=@_;
   my ($path,$keyring)=($repo->{path},$repo->{keyring});
-  opendir DH, "$path/pool-$distro/$section/" || next;
+  opendir DH, "$path/pool-$$distro{name}/$section/" || die $!;
+  print STDERR "$path/pool-$$distro{name}/$section/\n";
+  print STDERR "list_files\n";
   while(my $ent=readdir(DH)){
+    print STDERR "ent: $ent\n";
     print "\t$ent\n" if $ent=~m/\.deb$/;
   }
   closedir DH;
@@ -635,7 +638,13 @@ sub list_repository {
     foreach my $repo_name(keys %{$config->{repositories}}){
       my $repo=$config->{repositories}->{$repo_name};
       foreach my $distro (@{$repo->{distro}}){
-        list_files($repo,$distro,$section) if(($distro->{name} eq $add_to) ||($distro->{simlink} && $distro->{simlink} eq $add_to));
+        if($section){
+          list_files($repo,$distro,$section) if(($distro->{name} eq $add_to) ||($distro->{simlink} && $distro->{simlink} eq $add_to));
+        }else{
+          foreach my $read_section(@{$distro->{sections}}){
+            list_files($repo,$distro,$read_section);
+          }
+        }
       }
     }
   }else{
