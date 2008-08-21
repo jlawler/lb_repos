@@ -66,6 +66,7 @@ $command_name:  Builds and maintains package repositories.
 \tTo test the repo:  $command_name verify
 \tTo reset the checksum cache:  $command_name clear_cache
 \tTo create keys for a repository:  $command_name create_key [repo] 
+\tTo export the public keys for a repository:  $command_name export_keys [repo] 
 \tTo sync packages from a mirror:  $command_name sync_mirror
 \tTo  list files in the repositories:  $command_name list [distro][/section]\n";
 
@@ -105,6 +106,7 @@ my $config=read_config($config_file);
 $command="" unless $command;
 sub export_keys {
   my $target_repo=shift;
+  
   foreach my $repo_name(sort keys %{$config->{repositories}}){
     my $repo=$config->{repositories}->{$repo_name};
     my $alias=$repo->{alias};
@@ -113,7 +115,7 @@ sub export_keys {
         warn "Keyring doesn't exist! ($$repo{keyring}/secring.gpg)";
         next;
       }
-      system "GNUPGHOME=$$repo{keyring} gpg $GPG_FLAGS --export --armour ";
+      system "GNUPGHOME=$$repo{keyring} gpg $GPG_FLAGS --export --armour > $repo_name.gpg";
 #      print STDERR "CREATING KEYS FOR ".Dumper($config->{repositories}->{$repo_name})."\n";
     }
   }
@@ -175,8 +177,11 @@ if($command=~/^(re)?build/){
 sub list_files {
   my ($repo,$distro, $section)=@_;
   my ($path,$keyring)=($repo->{path},$repo->{keyring});
-  opendir DH, "$path/pool-$distro/$section/" || next;
+  opendir DH, "$path/pool-$$distro{name}/$section/" || die $!;
+  print STDERR "$path/pool-$$distro{name}/$section/\n";
+  print STDERR "list_files\n";
   while(my $ent=readdir(DH)){
+    print STDERR "ent: $ent\n";
     print "\t$ent\n" if $ent=~m/\.deb$/;
   }
   closedir DH;
@@ -348,7 +353,10 @@ sub write_cache {
   my ($distro, $repo_cache )= @_;
   my $cache=$distro->{cache};
   my $repo_fh;
-  open $repo_fh,">$repo_cache" || warn "Cannot update cache for ".$distro->{name}."\n";
+  unless(open $repo_fh,">$repo_cache"){
+    warn "Cannot update cache for ".$distro->{name}." $repo_cache\n";
+    return;
+  }
 #  print STDERR "WRITING CACHE $repo_cache\n";
   print $repo_fh "$cache_version\n";
   foreach my $arch (keys %{$distro->{cache}}){
@@ -635,7 +643,13 @@ sub list_repository {
     foreach my $repo_name(keys %{$config->{repositories}}){
       my $repo=$config->{repositories}->{$repo_name};
       foreach my $distro (@{$repo->{distro}}){
-        list_files($repo,$distro,$section) if(($distro->{name} eq $add_to) ||($distro->{simlink} && $distro->{simlink} eq $add_to));
+        if($section){
+          list_files($repo,$distro,$section) if(($distro->{name} eq $add_to) ||($distro->{simlink} && $distro->{simlink} eq $add_to));
+        }else{
+          foreach my $read_section(@{$distro->{sections}}){
+            list_files($repo,$distro,$read_section);
+          }
+        }
       }
     }
   }else{
