@@ -1,4 +1,5 @@
 *-stamp
+*.gpg
 debian/DEBIAN
 debian/longbranch-repos
 debian/files
