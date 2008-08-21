@@ -353,7 +353,10 @@ sub write_cache {
   my ($distro, $repo_cache )= @_;
   my $cache=$distro->{cache};
   my $repo_fh;
-  open $repo_fh,">$repo_cache" || warn "Cannot update cache for ".$distro->{name}."\n";
+  unless(open $repo_fh,">$repo_cache"){
+    warn "Cannot update cache for ".$distro->{name}." $repo_cache\n";
+    return;
+  }
 #  print STDERR "WRITING CACHE $repo_cache\n";
   print $repo_fh "$cache_version\n";
   foreach my $arch (keys %{$distro->{cache}}){
