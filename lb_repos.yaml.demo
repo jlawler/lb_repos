@@ -15,6 +15,8 @@ repositories:
     distro:
       - name : etch
         version : 4.0
+        #The repositories description goes in the release file and does not have to be a fight club reference.
+        description: "I am jack's angry debian repository."
         #FIXME TODO:  I'm 99% sure the symlink's don't work and never did.
         simlink : stable
         #sections are just groupings of packages.  For example, debian uses main, and non-free.  debian uses main, restricted, universe, and  multiverse 
