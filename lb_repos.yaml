@@ -1,19 +1,19 @@
 group_owner: packages
 repositories:
- debian.cashnetusa.com:
-  alias: debian
-  path: /home/jlawler/repos/repo/debian/www
-  keyring:  /home/jlawler/repos/var/www/keyring
-  distro:
-   - name : etch
-     version : 4.0
-     simlink : stable
-     sections: [main]
-     arch: [i386, amd64]
-     hashes: [md5]
-     mirrors: 
-      - url: "http://http.us.debian.org/debian"
-        packages: [ "vim*" ]
-        cache: "/home/jbryan/repos/repo/debian/cache"
-        resolve_deps: true
+  debian.cashnetusa.com:
+    alias: debian
+    path: /home/jlawler/repos/repo/debian/www
+    keyring:  /home/jlawler/repos/var/www/keyring
+    distro:
+      - name : etch
+        version : 4.0
+        simlink : stable
+        sections: [main]
+        arch: [i386, amd64]
+        hashes: [md5]
+        mirrors: 
+          - url: "http://http.us.debian.org/debian"
+            packages: [ "vim*" ]
+            cache: "/home/jbryan/repos/repo/debian/cache"
+            resolve_deps: true
 
