@@ -1,0 +1,25 @@
+#global options
+group_owner: packages
+
+
+repositories:
+
+  #The name here will be used in the Release file for the Origin and Label fields
+  debian.mydomain.com:
+    #alias is because sometimes I'm too lazy to type in 'debian.mydomain.com'
+    alias: debian
+    path: /path_to_web_accessable_directory
+    keyring:  /path_to_your_secret_keyring
+
+    #Below is the list of distributions this repository supports. 
+    distro:
+      - name : etch
+        version : 4.0
+        #FIXME TODO:  I'm 99% sure the symlink's don't work and never did.
+        simlink : stable
+        #sections are just groupings of packages.  For example, debian uses main, and non-free.  debian uses main, restricted, universe, and  multiverse 
+        sections: [main]
+        arch: [i386, amd64]
+        #supported hashes are md5, sha1 and sha256
+        hashes: [md5]
+
