@@ -1,0 +1,17 @@
+lb_repos was created to fill a simple nitch:  create a medium sized apt repository.  I spent time doing research to attempt to find a tool to make it easy to create a new debian repository, and I never found a tool or a tutorial that made it easy.  I either had to do too much work, or there was no support for relatively basic functionality, or they just didn't do the crypto in a sane way.  So now there is lb_repos, a tool that will let you easily build and maintain an apt repository without the overwhelming urge to cut yourself.
+
+
+The configuration is easy so long as you realize one thing:  I ignored some debian terminology.  While generally I believe this is evil, I am not a fan of debian's definitions of "section" and "component" with respect to packages.  They are married to the terms because of a mistake they made.  Luckily, I'm not them. 
+The requirement for apt are pretty meager:  apache (or some other web server), perl, and perl's YAML library.
+
+
+Installation and Configuration:
+Either download and install the .deb, or grab the source.
+The config is YAML, so it's pretty easy to read and easy to write.
+
+
+
+
+
+
+
