@@ -303,7 +303,7 @@ sub create_release_signature {
       warn "Public key doesn't appear to exist!\n" and return unless(-e "$$repo{keyring}/pubring.gpg");
       chdir($path) || die $!;
       #system "rm dists/$distro_name/Release.gpg dists/$distro_name/Release.gpg 2>/dev/null";
-      system "rm dists/$distro_name/Release.gpg";
+      system "rm -f dists/$distro_name/Release.gpg";
       system("gpg $GPG_FLAGS --home $keyring --sign -ba -o dists/$distro_name/Release.gpg dists/$distro_name/Release");
       foreach my $ext('','.gpg'){
         system("chgrp ".$config->{group_owner}." dists/$distro_name/Release".$ext." 2>/dev/null") if $config->{group_owner} && ($>==0 || $>==uid("dists/$distro_name/Release"));
