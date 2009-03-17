@@ -1,3 +1,9 @@
+longbranch-repos (0.4.2) jaunty; urgency=low
+
+  * couple template/code cleanups.  rm -f the release.gpg file. 
+
+ -- jlawler <jlawler@euler.cashnetusa>  Mon, 16 Mar 2009 13:47:29 -0500
+
 longbranch-repos (0.4.1) intrepid; urgency=low
 
   * emergency fix for stupid logic which could result in writing to a closed
