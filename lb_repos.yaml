@@ -8,6 +8,18 @@ repositories:
     distro:
       - name : etch 
         suite: ~        # Defaults to distro->name
+#Sometimes I hate debian...  Below is repeated their descriptions of the label and origin keywords:
+    #Origin: The name of who made the packages.
+    
+    #Label: Some label adequate for the packages or for your repository. Use 
+    #your fantasy.
+
+
+#label and origin are (as near as I can tell) only useful for pinning.  And
+#if you are pinning, they are VERY useful.  It's usually good to define these
+#because the defaults don't quite make sense.
+
+
         label: foo      # This is an arbitrary name to describe who/what "owns" this repo
         origin: bar     # whats the authoritative location for these files?
         version : 4.0
