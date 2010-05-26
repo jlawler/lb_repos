@@ -507,6 +507,9 @@ sub create_release_files {
   my $repo=shift;
   my $url=shift;
   foreach my $distro (@{$repo->{distro}}){
+  my $label = $repo->{distro} || $repo->{name};
+  my $origin = $repo->{origin} || ('http://' .  $repo->{name} . '/');
+  my $suite = $repo->{suite} || $repo->{name};
   my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) =gmtime();
 
   my $path=$repo->{path};
@@ -550,9 +553,9 @@ Codename: $distro->{name}
 Components: ".join(' ',@{$distro->{sections}})."
 Date: "."$days[$wday], ".sprintf("%02d", $mday )." $months[$mon] ".($year+1900)." $hour:$min:$sec UTC"." 
 Description: $distro_desc
-Label: (=) ( ".$url." )
-Origin: http://$url/
-Suite: $distro->{name}
+Label: ".$label."
+Origin: $origin
+Suite: $suite
 Version: $distro->{version}";
 $output.="
 MD5Sum:

@@ -4,8 +4,12 @@ repositories:
     alias: debian
     path: /home/jlawler/repos/repo/debian/www
     keyring:  /home/jlawler/repos/var/www/keyring
+    
     distro:
-      - name : etch
+      - name : etch 
+        suite: ~        # Defaults to distro->name
+        label: foo      # This is an arbitrary name to describe who/what "owns" this repo
+        origin: bar     # whats the authoritative location for these files?
         version : 4.0
         description: "I am jack's angry debian repo."
         simlink : stable
